@@ -1,0 +1,280 @@
+---
+title: N170 from ERP-fix
+author: Hannah, 4/4/2017
+output:
+  html_document:
+    highlight: pygments
+    theme: cerulean
+  pdf_document: default
+---
+
+```{r setup, include=FALSE, warnings=F}
+knitr::opts_chunk$set(echo = TRUE)
+options(width=140)
+require(dplyr)
+require(ggplot2)
+require(lme4)
+require(lmerTest)
+require(colorspace)
+require(grid)
+require(tidyr)
+```
+
+**Total sample is 134 subjects, 60 from CU and 74 from MU.**
+
+### 1. N170 grand averages  
+**Negative is plotted downwards.**
+
+```{r plotGrand, echo=FALSE}
+grand = read.delim("For_plotting_Cat_N170_noBS.txt")
+grand$avgElec = (grand$TP7 + grand$TP8 + grand$P7 + grand$P8)/4
+
+avg = select(grand, Time, Race, avgElec) %>% 
+  group_by(Time, Race) %>% 
+  summarise_each(funs(mean(., na.rm=TRUE))) %>% 
+  as.data.frame()
+
+N170box =  annotate("rect",    #N170
+                    xmin=135, xmax=195, ymin=-Inf, ymax=Inf,
+                    alpha=0,
+                    fill="#F0E0FF",
+                    color="black", 
+                    linetype="dashed")
+
+ERPline = geom_line(lwd=1.1,
+                    linetype="solid",
+                    aes(color = Race))
+
+condColors <- c("Black" = "red3", 
+                "White" = "dodgerblue4")
+
+none = element_blank() 
+
+ERPline = geom_line(lwd=1.1,
+                    aes(color = Race))
+
+
+
+none = element_blank() 
+
+# average of all 9 electrodes
+ggplot(data=avg, aes(Time, avgElec, group = Race)) + 
+  ERPline + 
+  N170box + 
+  theme_bw() + 
+  theme(panel.grid.major.x = none, panel.grid.minor.x = none) +
+  scale_x_continuous("Time (ms)", 
+                     limits=c(-100, 1000), 
+                     expand=c(0,0),   # expand=c(0,0) removes extra space before & after data
+                     breaks=c(-100, 0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000)) +
+  geom_hline(yintercept=0) + # adds x axis
+  geom_vline(xintercept=0) +
+#  scale_y_continuous(limits =c(10, -7.5)) +  # scale_y_reverse flips y axis
+  ylab("Amplitude (uV)") +
+  scale_color_manual(values=condColors) +
+  ggtitle("Average of TP7, TP8, P7, P8") +
+  theme(plot.title = element_text(hjust = 0.5)) # center title
+
+# make different data frame to facet electrodes and plot them separately
+forfacetting = select(grand, Time, Race, TP7, TP8, P7, P8) %>% 
+  group_by(Time, Race) %>% 
+  summarise_each(funs(mean(., na.rm=TRUE))) %>% 
+  as.data.frame() %>% 
+  gather("Electrode", "MeanAmp", 3:6)
+
+# each electrode separately
+ggplot(data=forfacetting, aes(Time, MeanAmp, group = Race)) + 
+  ERPline + 
+  N170box + 
+  theme_bw() + 
+  facet_wrap(~Electrode) +
+  theme(panel.grid.major.x = none, panel.grid.minor.x = none) +
+  scale_x_continuous("Time (ms)", 
+                     limits=c(-100, 600), 
+                     expand=c(0,0),   # expand=c(0,0) removes extra space before & after data
+                     breaks=c(-100, 0, 100, 200, 300, 400, 500, 600)) +
+  geom_hline(yintercept=0) + # adds x axis
+  geom_vline(xintercept=0) +
+#  scale_y_continuous(limits =c(10, -7.5)) +  # scale_y_reverse flips y axis
+  ylab("Amplitude (uV)") +
+  scale_color_manual(values=condColors) +
+#  ggtitle("Average of TP7, TP8, P7, P8") +
+  theme(plot.title = element_text(hjust = 0.5)) # center title
+
+
+```
+  
+To test the mean amplitude of the N170, a model was fitted with Race as a predictor. The intercept and slope of Race were allowed to vary by subject. The intercept was allowed to vary by Electrode nested within Subject. 
+
+Race was effect coded. 
+
+``` {r test, echo=F}
+dat = read.delim("./Cat_AllSubs_TBTaverages_noBS_groupN170.txt")
+
+# add effect codes for categorical variables
+dat$Race.e = NA
+dat$Race.e[dat$Race == "Black"] = -1
+dat$Race.e[dat$Race == "White"] = 1
+
+# model specified in "6 ERN model specification.R"
+grand1 = lmer(MeanAmp ~ Race.e + (Race.e|Subject) + (1|Electrode:Subject), dat = dat)
+```
+  
+**Random effects:**  
+``` {r grand1random, echo = FALSE}
+summary(grand1)$varcor
+```
+
+**Fixed effects:**
+``` {r grand1fixed, echo = FALSE} 
+round(summary(grand1)$coefficients, digits = 3)
+```
+
+### 2. Looking at the N170 over the course of the experiment
+
+**Slopes and estimates of lines are from the MLM, not fitted with OLS.  Negative is plotted downward.** 
+
+``` {r trialLevel, echo = FALSE, warning = FALSE}
+# making dummy codes is redundant but comforting, so LET ME LIVE
+dat$Race.d = NA
+dat$Race.d[dat$Race == "Black"] = 0
+dat$Race.d[dat$Race == "White"] = 1
+
+# find slopes and intercepts with dummy coded model, trial (unscaled) is included
+plot1.d = lmer(MeanAmp ~ Race.d*Trial + (Race.d|Subject) + (1|Electrode:Subject), dat = dat)
+
+parms <- fixef(plot1.d) # fixed parameters from model
+vcmat <- vcov(plot1.d) # variance/covariance matrix of fixed effects
+
+# First calculate slopes
+
+## each row of this matrix defines entries of parms that we want to combine:
+STmat <- matrix(NA,2,4)
+STmat[1,] <- c(0,0,1,0) # slope for race = 0 (black)
+STmat[2,] <- c(0,0,1,1) # slope for race = 1 (white)
+
+Sparest <- STmat %*% parms          # see above for notation
+Snewvc <- STmat %*% vcmat %*% t(STmat)
+Sses <- sqrt(diag(Snewvc)) 
+
+slopes = cbind(Sparest, Sses) %>% as.data.frame()
+names(slopes) = c("Slope", "Slope_SE")
+
+# Next calculate intercepts
+
+## each row of this matrix defines entries of parms that we want to combine:
+ITmat <- matrix(NA,2,4)
+ITmat[1,] <- c(1,0,0,0) # intercept for race = 0 (black)
+ITmat[2,] <- c(1,1,0,0) # intercept for race = 1 (white)
+
+Iparest <- ITmat %*% parms          # see above for notation
+Inewvc <- ITmat %*% vcmat %*% t(ITmat)
+Ises <- sqrt(diag(Inewvc)) 
+
+intercepts = cbind(Iparest, Ises) %>% as.data.frame()
+names(intercepts) = c("Intercept", "Intercept_SE")
+
+forPlotting = cbind(slopes, intercepts)
+
+# label for understanding
+forPlotting$Race = c("Black", "White")
+
+
+# BINGO -------------------------------------------------------------------
+ggplot(dat, aes(Trial, MeanAmp, alpha = Race, color = Race, shape = Race)) +
+  geom_point() +
+  geom_abline(data = forPlotting, aes(intercept=Intercept, slope=Slope, color = Race), size=1)+
+  labs(x = "Trial", y = "Mean Amplitude") +
+#  scale_shape_manual(values=c(1,19,1,19)) +
+  scale_alpha_manual(values=c(.1,.1,.1,.1)) +
+  scale_color_manual(values=c("blue", "dodgerblue")) +
+  theme_bw() +
+  scale_y_continuous(limits =c(-5, 3), expand=c(0,0)) +
+  scale_x_continuous(expand=c(0,0)) +
+#  ggtitle("Trial is original trial number") +
+  theme(plot.title = element_text(hjust = 0.5)) # center title
+```
+
+##### Simple slopes
+
+Trial is scaled to range from 0 to 10 (instead of 1 to 256) so that the betas associated with trial are a little bigger (but significance testing is unaffected by linear scaling, so the test statistics and p values will be the same as if we used the unscaled Trial variable).
+
+``` {r simple, echo = FALSE}
+# rescale trial
+dat$Trial.begin = (dat$Trial-1)/25.5
+# shift trial to look at fixed effects at end of task as well
+dat$Trial.end = dat$Trial.begin - 10
+
+# find slopes with dummy coded model, trial is scaled
+begin.d <- lmer(MeanAmp ~ Race.d*Trial.begin + (Race.d|Subject) + (1|Electrode:Subject), dat = dat)
+
+parms <- fixef(begin.d) # fixed parameters from model
+vcmat <- vcov(begin.d) # variance/covariance matrix of fixed effects
+
+## each row of this matrix defines entries of parms that we want to combine:
+Tmat <- matrix(NA,2,4)
+Tmat[1,] <- c(0,0,1,0) # slope for race = 0 (black)
+Tmat[2,] <- c(0,0,1,1) # slope for race = 1 (white)
+
+parest <- Tmat %*% parms          # see above for notation
+newvc <- Tmat %*% vcmat %*% t(Tmat)
+ses <- sqrt(diag(newvc)) 
+
+## final results
+fin = cbind(parest, ses) %>% as.data.frame()
+names(fin) = c("est", "ses")
+
+# to calculate 95% CI intervals, lower bound = m - 2*SE, upper bound = m + 2*SE
+
+fin$lbnd = fin$est - 2*fin$ses
+fin$ubnd = fin$est + 2*fin$ses
+
+fin = format(fin, digits = 3)
+
+# relabel for understanding
+fin$Race = c("Black", "White")
+
+fin = rename(fin, Estimate = est, SE = ses, ci95_lower = lbnd, ci95_upper = ubnd)
+
+# display
+fin
+```  
+
+#### Model output: Beginning of experiment
+The intercept, slopes of current and previous trial condition and their interaction are allowed to vary by subject. *Categorical variables are effect coded.*   
+  
+Trial is scaled to range from 0 to 10.  
+
+``` {r begin, echo = FALSE}
+# same model, but with effect coding
+begin.e = lmer(MeanAmp ~ Race.e*Trial.begin + (Race.e|Subject) + (1|Electrode:Subject), dat = dat)
+```
+  
+**Random effects:**  
+``` {r beginrandom, echo = FALSE}
+summary(begin.e)$varcor
+```
+
+**Fixed effects:**
+``` {r beginfixed, echo = FALSE} 
+round(summary(begin.e)$coefficients, digits = 3)
+```
+
+#### Model output: End of experiment
+Trial is scaled to range from 10 to 0.  
+
+``` {r end, echo = FALSE}
+# same model, but with effect coding
+end.e = lmer(MeanAmp ~ Race.e*Trial.end + (Race.e|Subject) + (1|Electrode:Subject), dat = dat)
+```
+  
+**Random effects:**  
+``` {r endrandom, echo = FALSE}
+summary(end.e)$varcor
+```
+
+**Fixed effects:**
+``` {r endfixed, echo = FALSE} 
+round(summary(end.e)$coefficients, digits = 3)
+```
+
