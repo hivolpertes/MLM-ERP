@@ -1,0 +1,21 @@
+{
+    "collab_server" : "",
+    "contents" : "# Figure out demographic information of sample\n\nrequire(dplyr)\n\ndat = read.delim(\"./4 quantified data/ERN_noMiss_noArt_RTaccept_noBS.txt\")\nsublist = unique(dat$Subject)\n\ndemo = read.delim(\"./Support files/allBIASquestionnaireData_N485.txt\")\ndemo.sub = filter(demo, subnum %in% sublist)\n\ndemo.sub2 = select(demo.sub, subnum, Age, Gender, Hispanic) %>% \n  cbind(select(demo.sub,starts_with(\"Race\")))\n\nmin(demo.sub2$Age, na.rm=T)\nmax(demo.sub2$Age, na.rm=T)\nmean(demo.sub2$Age, na.rm=T)\n\nnrow(demo.sub2[demo.sub2$Gender == 1,]) # male\nnrow(demo.sub2[demo.sub2$Gender == 2,]) # female\n\n# find subjects that reported more than one race\nmulti = demo.sub2[demo.sub2$Race_tive + \n                    demo.sub2$Race_Asian + \n                    demo.sub2$Race_Black + \n                    demo.sub2$Race_Island +\n                    demo.sub2$Race_White < 9,]\n\ndemo.sub3 = filter(demo.sub2,!(subnum %in% unique(multi$subnum)))\n\nnrow(filter(demo.sub3, Race_White == 1))\nnrow(filter(demo.sub3, Race_Asian == 1))\nnrow(filter(demo.sub3, Race_tive == 1))\nnrow(filter(demo.sub3, Race_Black == 1))\nnrow(filter(demo.sub3, Race_Island == 1))\nnrow(filter(demo.sub3, Race_NoReply == 1))\n\nnrow(demo.sub3[demo.sub3$Hispanic == 1,]) # Hispanic\n",
+    "created" : 1490134918355.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "311052375",
+    "id" : "CCE03A04",
+    "lastKnownWriteTime" : 1490137180,
+    "last_content_update" : 1490137180597,
+    "path" : "~/Documents/Projects/6 MLM Psychophys paper/EFbias data/8 Demographics.R",
+    "project_path" : "8 Demographics.R",
+    "properties" : {
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 6,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

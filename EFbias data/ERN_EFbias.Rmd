@@ -1,0 +1,456 @@
+---
+title: ERN from EF bias
+author: Hannah, 3/9/2017
+output:
+  html_document:
+    highlight: pygments
+    theme: cerulean
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(width=140)
+require(dplyr)
+require(ggplot2)
+require(lme4)
+require(lmerTest)
+require(colorspace)
+require(grid)
+```
+
+Data from previously processed EEG files from CU and MU were used. Before I got them, the following was done:  
+
+1) CNT file was merged with dat file to add response latency and accuracy information to CNT file  
+2) CNT was re-referenced to average mastoids reference  
+3) Blinks were corrected for  
+4) A filter was applied (need to look up the settings for that)  
+5) Files were response-locked, with an epoch of -400 to 500  
+
+I subsequently:  
+
+1) Baseline corrected EEG files (using a baseline of -400 to -200)  
+2) Performed an automatic artifact rejected procedure (trials with +- 75 uV were rejected, only using 9 electrodes of interest as the criteria)  
+
+Trials were included if:  
+1) The RT was between 200 and 500 ms  
+2) A response was made (i.e., no miss trials)  
+3) The trial wasn't rejected in artifact rejection procedure  
+
+The following subjects were excluded:    
+- 1040 (doesn't have full number of trials)  
+- 2023 (problems with EEG data)  
+- 2077 (problems with EEG data)  
+- 2089 (problems with EEG data)  
+- 2151 (problems with EEG data)  
+- 2157 (problems with EEG data)  
+- 2181 (problems with EEG data)  
+- 2187 (doesn't have full number of trials)  
+
+Each subject did 384 experimental trials (prime-only trials were also included but not in the 384).  
+
+FZ, F3, F4, FCZ, FC3, FC4, C3, CZ, C4 (9 electrodes) were included.
+
+**Total sample is 134 subjects, 60 from CU and 74 from MU.**
+
+\textbf{Here are the number of error committed in each condition by each subject:}
+``` {r errCount, echo=F, eval=F}
+read.delim("ErrorsPerCondition.txt")
+```
+
+
+### 1. ERN/CRN grand averages  
+**Negative is plotted upward.**
+
+```{r plotGrand, echo=FALSE}
+# plot grand averages
+grand = read.delim("./5 waveforms/data/Data for grand averages_allelec.txt")
+
+condLine <- c("Black_gun_correct" = "dashed",    # CRN is dashed
+              "Black_tool_correct" = "dashed", 
+              "White_gun_correct" = "dashed", 
+              "White_tool_correct" = "dashed",
+              "Black_gun_incorrect" = "solid",  # ERN is solid
+              "Black_tool_incorrect" = "solid", 
+              "White_gun_incorrect" = "solid", 
+              "White_tool_incorrect" = "solid")
+
+
+condColors <- c("Black_gun_correct" = "dodgerblue", 
+                "Black_tool_correct" = "blue", 
+                "White_gun_correct" = "red", 
+                "White_tool_correct" = "darkred",
+                "Black_gun_incorrect" = "dodgerblue", 
+                "Black_tool_incorrect" = "blue", 
+                "White_gun_incorrect" = "red", 
+                "White_tool_incorrect" = "darkred")
+
+ERPline = geom_line(lwd=1.1,
+                    #linetype=plotCondition,
+                    aes(color = plotCondition, linetype = plotCondition))
+
+
+ERNbox = annotate("rect",
+                 xmin=25, xmax=125, ymin=-Inf, ymax=Inf, 
+                 alpha=0,
+                 fill="#F0E0FF",
+                 color="black", 
+                 linetype="dashed") 
+
+none = element_blank() 
+
+# average of all 9 electrodes
+ggplot(data=grand, aes(Time, avgElec, group = plotCondition)) + 
+  ERPline + 
+  ERNbox + 
+  theme_bw() + 
+  theme(panel.grid.major.x = none, panel.grid.minor.x = none) +
+  scale_x_continuous("Time (ms)", 
+                     limits=c(-400, 500), 
+                     expand=c(0,0),   # expand=c(0,0) removes extra space before & after data
+                     breaks=c(-400, -300, -200, -100, 0, 100, 200, 300, 400, 500)) +
+  geom_hline(yintercept=0) + # adds x axis
+  geom_vline(xintercept=0) +
+  scale_y_reverse(limits =c(10, -7.5)) +  # scale_y_reverse flips y axis
+  ylab("Amplitude (uV)") +
+  scale_color_manual(values=condColors) +
+  scale_linetype_manual(values=condLine) +
+  ggtitle("Average of fronto-central electrodes") +
+  theme(plot.title = element_text(hjust = 0.5)) # center title
+
+
+```
+  
+To test the mean amplitude of the ERNs, a model was fitted with Race and Object as predictors. The intercept, slopes of Race and Object, and their interaction were allowed to vary by subject. The intercept was allowed to vary by Electrode nested within Subject. 
+
+Race and Object were both effect coded. 
+
+``` {r test, echo=F}
+dat = read.delim("./4 quantified data/ERN_noMiss_noArt_RTaccept_noBS.txt")
+errDat = dat %>% filter(Accuracy == "incorrect")
+
+# add effect codes for categorical variables
+errDat$Race.e = NA
+errDat$Race.e[errDat$Race == "Black"] = -1
+errDat$Race.e[errDat$Race == "White"] = 1
+
+errDat$Object.e = NA
+errDat$Object.e[errDat$Object == "gun"] = -1
+errDat$Object.e[errDat$Object == "tool"] = 1
+
+# model specified in "6 ERN model specification.R"
+grand1 = lmer(MeanAmp ~ Race.e*Object.e + (Race.e*Object.e|Subject) + (1|Electrode:Subject), dat = errDat)
+```
+  
+**Random effects:**  
+``` {r grand1random, echo = FALSE}
+summary(grand1)$varcor
+```
+
+**Fixed effects:**
+``` {r grand1fixed, echo = FALSE} 
+round(summary(grand1)$coefficients, digits = 3)
+```
+
+### 2. Looking at the ERN over the course of the experiment
+##### - Each error occurs at original trial number
+
+**Slopes and estimates of lines are from the MLM, not fitted with OLS.  Negative is plotted downward.** 
+
+``` {r trialLevel, echo = FALSE, warning = FALSE}
+# making dummy codes is redundant but comforting, so LET ME LIVE
+errDat$Race.d = NA
+errDat$Race.d[errDat$Race == "Black"] = 0
+errDat$Race.d[errDat$Race == "White"] = 1
+
+errDat$Object.d = NA
+errDat$Object.d[errDat$Object == "gun"] = 0
+errDat$Object.d[errDat$Object == "tool"] = 1
+
+# find slopes and intercepts with dummy coded model, trial (unscaled) is included
+plot1.d = lmer(MeanAmp ~ Race.d*Object.d*Trial + (Race.d*Object.d|Subject) + (1|Electrode:Subject), dat = errDat)
+
+parms <- fixef(plot1.d) # fixed parameters from model
+vcmat <- vcov(plot1.d) # variance/covariance matrix of fixed effects
+
+# First calculate slopes
+
+## each row of this matrix defines entries of parms that we want to combine:
+STmat <- matrix(NA,4,8)
+STmat[1,] <- c(rep(0,3),1,0,0,0,0) # slope for race = 0, object = 0 (black-gun)
+STmat[2,] <- c(rep(0,3),1,0,0,1,0) # slope for race = 0, object = 1 (black-tool)
+STmat[3,] <- c(rep(0,3),1,0,1,0,0) # slope for race = 1, object = 0 (white-gun)
+STmat[4,] <- c(rep(0,3),1,0,1,1,1) # slope for race = 1, object = 1 (white-tool)
+
+Sparest <- STmat %*% parms          # see above for notation
+Snewvc <- STmat %*% vcmat %*% t(STmat)
+Sses <- sqrt(diag(Snewvc)) 
+
+slopes = cbind(Sparest, Sses) %>% as.data.frame()
+names(slopes) = c("Slope", "Slope_SE")
+
+# Next calculate intercepts
+
+## each row of this matrix defines entries of parms that we want to combine:
+ITmat <- matrix(NA,4,8)
+ITmat[1,] <- c(1,0,0,0,0,rep(0,3)) # intercept for race = 0, object = 0 (black-gun)
+ITmat[2,] <- c(1,0,1,0,0,rep(0,3)) # intercept for race = 0, object = 1 (black-tool)
+ITmat[3,] <- c(1,1,0,0,0,rep(0,3)) # intercept for race = 1, object = 0 (white-gun)
+ITmat[4,] <- c(1,1,0,0,1,rep(0,3)) # intercept for race = 1, object = 1 (white-tool)
+
+Iparest <- ITmat %*% parms          # see above for notation
+Inewvc <- ITmat %*% vcmat %*% t(ITmat)
+Ises <- sqrt(diag(Inewvc)) 
+
+intercepts = cbind(Iparest, Ises) %>% as.data.frame()
+names(intercepts) = c("Intercept", "Intercept_SE")
+
+forPlotting = cbind(slopes, intercepts)
+
+# label for understanding
+forPlotting$Condition = c("Black_gun", 
+                          "Black_tool",
+                          "White_gun",
+                          "White_tool")
+
+
+# BINGO -------------------------------------------------------------------
+ggplot(errDat, aes(Trial, MeanAmp, alpha = Condition, color = Condition, shape = Condition)) +
+  geom_point() +
+  geom_abline(data = forPlotting, aes(intercept=Intercept, slope=Slope, color = Condition), size=1)+
+  labs(x = "Trial", y = "Mean Amplitude") +
+  scale_shape_manual(values=c(1,19,1,19)) +
+  scale_alpha_manual(values=c(.1,.1,.1,.1)) +
+  scale_color_manual(values=c("dodgerblue", "blue", "red", "darkred")) +
+  theme_bw() +
+  scale_y_continuous(limits =c(-7.5, 10), expand=c(0,0)) +
+  scale_x_continuous(expand=c(0,0)) +
+  ggtitle("Trial is original trial number") +
+  theme(plot.title = element_text(hjust = 0.5)) # center title
+```
+
+##### Simple slopes
+
+Trial is scaled to range from 0 to 10 (instead of 1 to 384) so that the betas associated with trial are a little bigger (but significance testing is unaffected by linear scaling, so the test statistics and p values will be the same as if we used the unscaled Trial variable).
+
+``` {r simple, echo = FALSE}
+# rescale trial
+errDat$Trial.begin = (errDat$Trial-1)/3.83
+# shift trial to look at fixed effects at middle and end of task as well
+errDat$Trial.middle = errDat$Trial.begin - 5
+errDat$Trial.end = errDat$Trial.begin - 10
+
+# find slopes with dummy coded model, trial is scaled
+begin.d <- lmer(MeanAmp ~ Race.d*Object.d*Trial.begin + (Race.d*Object.d|Subject) + (1|Electrode:Subject), dat = errDat)
+
+parms <- fixef(begin.d) # fixed parameters from model
+vcmat <- vcov(begin.d) # variance/covariance matrix of fixed effects
+
+## each row of this matrix defines entries of parms that we want to combine:
+Tmat <- matrix(NA,4,8)
+Tmat[1,] <- c(rep(0,3),1,0,0,0,0) # weights for estimates for current = 0, previous = 0 (current compat-previous compat)
+Tmat[2,] <- c(rep(0,3),1,0,0,1,0) # weights for estimates for current = 0, previous = 1 (current compat-previous incompat)
+Tmat[3,] <- c(rep(0,3),1,0,1,0,0) # weights for estimates for current = 1, previous = 0 (current incompat-previous compat)
+Tmat[4,] <- c(rep(0,3),1,0,1,1,1) # weights for estimates for current = 1, previous = 1 (current incompat-previous incompat)
+
+parest <- Tmat %*% parms          # see above for notation
+newvc <- Tmat %*% vcmat %*% t(Tmat)
+ses <- sqrt(diag(newvc)) 
+
+## final results
+fin = cbind(parest, ses) %>% as.data.frame()
+names(fin) = c("est", "ses")
+
+# to calculate 95% CI intervals, lower bound = m - 2*SE, upper bound = m + 2*SE
+
+fin$lbnd = fin$est - 2*fin$ses
+fin$ubnd = fin$est + 2*fin$ses
+
+fin = format(fin, digits = 3)
+
+# relabel for understanding
+fin$Race = c("Black", "Black", "White", "White")
+fin$Object = c("gun", "tool", "gun", "tool")
+fin$Color = c("light blue", "dark blue", "light red", "dark red")
+
+fin = rename(fin, Estimate = est, SE = ses, ci95_lower = lbnd, ci95_upper = ubnd)
+
+# display
+fin
+```  
+
+#### Model output
+The intercept, slopes of current and previous trial condition and their interaction are allowed to vary by subject. *Categorical variables are effect coded.*   
+  
+Trial is scaled to range from 0 to 10.  
+
+``` {r begin, echo = FALSE}
+# same model, but with effect coding
+begin.e = lmer(MeanAmp ~ Race.e*Object.e*Trial.begin + (Race.e*Object.e|Subject) + (1|Electrode:Subject), dat = errDat)
+```
+  
+**Random effects:**  
+``` {r beginrandom, echo = FALSE}
+summary(begin.e)$varcor
+```
+
+**Fixed effects:**
+``` {r beginfixed, echo = FALSE} 
+round(summary(begin.e)$coefficients[c(1:3,5),1:5], digits = 4)
+round(summary(begin.e)$coefficients[c(4,6:8),1:5], digits = 3)
+```
+
+### 3. Looking at the ERN over the course of the experiment
+##### - Each error is order for each subject, then centered for each subject
+  
+**Slopes and estimates of lines are from the MLM, not fitted with OLS.  Negative is plotted downward.** 
+  
+``` {r subcentered, echo=F, warning=F}
+trialOrderDat = NULL
+for (i in unique(dat$Subject)) {
+  # take error trials, renumber them by order
+  err = dat[dat$Subject == i & dat$Accuracy == "incorrect",] %>% 
+    filter(!is.na(Trial))
+  err$TrialOrder = rep(1:length(unique(err$Trial)), each = 9)
+  
+  trialOrderDat = rbind(trialOrderDat, err)
+}
+
+# center ordered trial variable for each subject
+for (i in unique(dat$Subject)) {
+  numTrial = max(trialOrderDat$TrialOrder[trialOrderDat$Subject == i])
+  trialOrderDat$TrialOrder.c[trialOrderDat$Subject == i] = trialOrderDat$TrialOrder[trialOrderDat$Subject == i] - numTrial/2
+}
+
+# fit model to plot simple slopes
+plot2.d = lmer(MeanAmp ~ Race*Object*TrialOrder.c + (Race*Object|Subject) + (1|Electrode:Subject), dat = trialOrderDat)
+
+parms <- fixef(plot2.d) # fixed parameters from model
+vcmat <- vcov(plot2.d) # variance/covariance matrix of fixed effects
+
+# First calculate slopes
+
+## each row of this matrix defines entries of parms that we want to combine:
+STmat <- matrix(NA,4,8)
+STmat[1,] <- c(rep(0,3),1,0,0,0,0) # slope for race = 0, object = 0 (black-gun)
+STmat[2,] <- c(rep(0,3),1,0,0,1,0) # slope for race = 0, object = 1 (black-tool)
+STmat[3,] <- c(rep(0,3),1,0,1,0,0) # slope for race = 1, object = 0 (white-gun)
+STmat[4,] <- c(rep(0,3),1,0,1,1,1) # slope for race = 1, object = 1 (white-tool)
+
+Sparest <- STmat %*% parms          # see above for notation
+Snewvc <- STmat %*% vcmat %*% t(STmat)
+Sses <- sqrt(diag(Snewvc)) 
+
+slopes = cbind(Sparest, Sses) %>% as.data.frame()
+names(slopes) = c("Slope", "Slope_SE")
+
+# Next calculate intercepts
+
+## each row of this matrix defines entries of parms that we want to combine:
+ITmat <- matrix(NA,4,8)
+ITmat[1,] <- c(1,0,0,0,0,rep(0,3)) # intercept for race = 0, object = 0 (black-gun)
+ITmat[2,] <- c(1,0,1,0,0,rep(0,3)) # intercept for race = 0, object = 1 (black-tool)
+ITmat[3,] <- c(1,1,0,0,0,rep(0,3)) # intercept for race = 1, object = 0 (white-gun)
+ITmat[4,] <- c(1,1,0,0,1,rep(0,3)) # intercept for race = 1, object = 1 (white-tool)
+
+Iparest <- ITmat %*% parms          # see above for notation
+Inewvc <- ITmat %*% vcmat %*% t(ITmat)
+Ises <- sqrt(diag(Inewvc)) 
+
+intercepts = cbind(Iparest, Ises) %>% as.data.frame()
+names(intercepts) = c("Intercept", "Intercept_SE")
+
+forPlotting = cbind(slopes, intercepts)
+
+# label for understanding
+forPlotting$Condition = c("Black_gun", 
+                          "Black_tool",
+                          "White_gun",
+                          "White_tool")
+
+
+# BINGO -------------------------------------------------------------------
+ggplot(trialOrderDat, aes(TrialOrder.c, MeanAmp, alpha = Condition, color = Condition, shape = Condition)) +
+  geom_point() +
+  geom_abline(data = forPlotting, aes(intercept=Intercept, slope=Slope, color = Condition), size=1)+
+  labs(x = "Trial", y = "Mean Amplitude") +
+  scale_shape_manual(values=c(1,19,1,19)) +
+  scale_alpha_manual(values=c(.1,.1,.1,.1)) +
+  scale_color_manual(values=c("dodgerblue", "blue", "red", "darkred")) +
+  theme_bw() +
+  scale_y_continuous(limits =c(-7.5, 10), expand=c(0,0)) +
+  scale_x_continuous(expand=c(0,0)) +
+  ggtitle("Errors are ordered and subject-centered") +
+  theme(plot.title = element_text(hjust = 0.5)) # center title
+
+```
+
+##### Simple slopes
+
+``` {r simple2, echo = FALSE}
+
+# model is already specified above
+
+## each row of this matrix defines entries of parms that we want to combine:
+Tmat <- matrix(NA,4,8)
+Tmat[1,] <- c(rep(0,3),1,0,0,0,0) # weights for estimates for current = 0, previous = 0 (current compat-previous compat)
+Tmat[2,] <- c(rep(0,3),1,0,0,1,0) # weights for estimates for current = 0, previous = 1 (current compat-previous incompat)
+Tmat[3,] <- c(rep(0,3),1,0,1,0,0) # weights for estimates for current = 1, previous = 0 (current incompat-previous compat)
+Tmat[4,] <- c(rep(0,3),1,0,1,1,1) # weights for estimates for current = 1, previous = 1 (current incompat-previous incompat)
+
+parest <- Tmat %*% parms          # see above for notation
+newvc <- Tmat %*% vcmat %*% t(Tmat)
+ses <- sqrt(diag(newvc)) 
+
+## final results
+fin = cbind(parest, ses) %>% as.data.frame()
+names(fin) = c("est", "ses")
+
+# to calculate 95% CI intervals, lower bound = m - 2*SE, upper bound = m + 2*SE
+
+fin$lbnd = fin$est - 2*fin$ses
+fin$ubnd = fin$est + 2*fin$ses
+
+fin = format(fin, digits = 3)
+
+# relabel for understanding
+fin$Race = c("Black", "Black", "White", "White")
+fin$Object = c("gun", "tool", "gun", "tool")
+fin$Color = c("light blue", "dark blue", "light red", "dark red")
+
+fin = rename(fin, Estimate = est, SE = ses, ci95_lower = lbnd, ci95_upper = ubnd)
+
+# display
+fin
+```  
+
+#### Model output
+The intercept, slopes of current and previous trial condition and their interaction are allowed to vary by subject. *Categorical variables are effect coded.*   
+  
+For each subject, error trials are numbered (in order) and centered.   
+
+``` {r sc, echo = FALSE}
+# same model, but with effect coding
+# add effect codes for categorical variables
+trialOrderDat$Race.e = NA
+trialOrderDat$Race.e[trialOrderDat$Race == "Black"] = -1
+trialOrderDat$Race.e[trialOrderDat$Race == "White"] = 1
+
+trialOrderDat$Object.e = NA
+trialOrderDat$Object.e[trialOrderDat$Object == "gun"] = -1
+trialOrderDat$Object.e[trialOrderDat$Object == "tool"] = 1
+
+subcentered = lmer(MeanAmp ~ Race.e*Object.e*TrialOrder.c + (Race.e*Object.e|Subject) + (1|Electrode:Subject), dat = trialOrderDat)
+```
+  
+**Random effects:**  
+``` {r sc_random, echo = FALSE}
+summary(subcentered)$varcor
+```
+
+**Fixed effects:**
+``` {r sc_fixed, echo = FALSE} 
+round(summary(subcentered)$coefficients[c(1:3,5),1:5], digits = 3)
+round(summary(subcentered)$coefficients[c(4,6:8),1:5], digits = 3)
+```
+

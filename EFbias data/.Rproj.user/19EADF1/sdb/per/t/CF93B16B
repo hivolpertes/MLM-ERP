@@ -1,0 +1,29 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1491240804711.000,
+    "dirty" : false,
+    "encoding" : "",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "CF93B16B",
+    "lastKnownWriteTime" : 8314042256730357766,
+    "last_content_update" : 1491240804711,
+    "path" : null,
+    "project_path" : null,
+    "properties" : {
+        "cacheKey" : "A57336C",
+        "caption" : "forCor",
+        "contentUrl" : "grid_resource/gridviewer.html?env=&obj=forCor&cache_key=A57336C",
+        "displayedObservations" : 134,
+        "environment" : "",
+        "object" : "forCor",
+        "preview" : 0,
+        "totalObservations" : 134,
+        "variables" : 8
+    },
+    "relative_order" : 9,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_dataframe"
+}

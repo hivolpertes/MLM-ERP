@@ -1,0 +1,21 @@
+{
+    "collab_server" : "",
+    "contents" : "require(lme4)\nrequire(lmerTest)\nrequire(dplyr)\n\ndat = read.delim(\"./4 quantified data/ERN_noMiss_noArt_RTaccept_noBS.txt\")\n\nerrDat = dat %>% filter(Accuracy == \"incorrect\")\n\n# add effect codes for categorical variables\nerrDat$Race.e = NA\nerrDat$Race.e[errDat$Race == \"Black\"] = -1\nerrDat$Race.e[errDat$Race == \"White\"] = 1\n\nerrDat$Object.e = NA\nerrDat$Object.e[errDat$Object == \"gun\"] = -1\nerrDat$Object.e[errDat$Object == \"tool\"] = 1\n\n# Not including trial -----------------------------------------------------\n\n# Model specification: start with maximal model\nm1 = lmer(MeanAmp ~ 1 + (Race.e*Object.e|Subject) + (1|Electrode:Subject), dat = errDat)\nsummary(m1)\n\n# Final model:\nmF = lmer(MeanAmp ~ Race.e*Object.e + (Race.e*Object.e|Subject) + (1|Electrode:Subject), dat = errDat)\nsummary(mF)\n\n\n# Including trial ---------------------------------------------------------\n\n# Model specification: start with maximal model\nm1 = lmer(MeanAmp ~ 1 + (Race.e*Object.e*Trial|Subject) + (1|Electrode:Subject), dat = errDat)\n# Doesn't converge\n\nm2 = lmer(MeanAmp ~ 1 + (Race.e+Object.e+Trial|Subject) + (1|Electrode:Subject), dat = errDat)\n# Doesn't converge\n\nm3 = lmer(MeanAmp ~ 1 + (Object.e+Trial|Subject) + (1|Electrode:Subject), dat = errDat)\n# Doesn't converge\n\nm4 = lmer(MeanAmp ~ 1 + (Trial|Subject) + (1|Electrode:Subject), dat = errDat)\n# Doesn't converge\n\n# Final model:\nmF = lmer(MeanAmp ~ Race.e*Object.e*Trial + (Race.e*Object.e|Subject) + (1|Electrode:Subject), dat = errDat)\nsummary(mF)\n",
+    "created" : 1488988657623.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "4262017369",
+    "id" : "251154FC",
+    "lastKnownWriteTime" : 1489019396,
+    "last_content_update" : 1489019396295,
+    "path" : "~/Documents/Projects/6 MLM Psychophys paper/EFbias data/6 ERN model specification.R",
+    "project_path" : "6 ERN model specification.R",
+    "properties" : {
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 12,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

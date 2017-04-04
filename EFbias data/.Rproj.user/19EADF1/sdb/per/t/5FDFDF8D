@@ -1,0 +1,21 @@
+{
+    "collab_server" : "",
+    "contents" : "require(dplyr)\nrequire(ggplot2)\n\ndat = read.delim(\"./4 quantified data/ERN_noMiss_noArt_RTaccept_noBS.txt\") %>% filter(Accuracy == \"incorrect\")\n\n\nerrors = read.delim(\"ErrorsPerCondition.txt\")\nerrors$Total = errors$WT + errors$WG + errors$BT + errors$BG\n\n# All errors together -----------------------------------------------------\n\ndat.sum = select(dat, Subject, MeanAmp) %>% \n  group_by(Subject) %>% \n  summarise_each(funs(mean(., na.rm=TRUE))) %>% \n  as.data.frame()\n\nforCor = cbind(errors, dat.sum)\n\nggplot(aes(Total, MeanAmp), data = forCor) +\n  geom_point() +\n  geom_smooth(method=\"lm\") +\n  ggtitle(\"All errors\")\n\ncor.test(forCor$Total, forCor$MeanAmp)\n\n\n\n# Just Black-tool errors --------------------------------------------------\nBT = filter(dat, Condition == \"Black_tool\") %>% \n  select(Subject, MeanAmp) %>% \n  group_by(Subject) %>% \n  summarise_each(funs(mean(., na.rm=TRUE))) %>% \n  as.data.frame()\n\nforCorBT = cbind(errors, BT)\n\nggplot(aes(BT, MeanAmp), data = forCorBT) +\n  geom_point() +\n  geom_smooth(method=\"lm\") +\n  ggtitle(\"Just Black-tool errors\")\n\ncor.test(forCorBT$BT, forCorBT$MeanAmp)\n\n# Just Black-gun errors --------------------------------------------------\nBG = filter(dat, Condition == \"Black_gun\") %>% \n  select(Subject, MeanAmp) %>% \n  group_by(Subject) %>% \n  summarise_each(funs(mean(., na.rm=TRUE))) %>% \n  as.data.frame()\n\nforCorBG = cbind(errors, BG)\n\nggplot(aes(BG, MeanAmp), data = forCorBG) +\n  geom_point() +\n  geom_smooth(method=\"lm\") +\n  ggtitle(\"Just Black-gun errors\")\n\ncor.test(forCorBG$BG, forCorBG$MeanAmp)\n\n# Just White-tool errors --------------------------------------------------\nWT = filter(dat, Condition == \"White_tool\") %>% \n  select(Subject, MeanAmp) %>% \n  group_by(Subject) %>% \n  summarise_each(funs(mean(., na.rm=TRUE))) %>% \n  as.data.frame()\n\nforCorWT = cbind(errors, WT)\n\nggplot(aes(WT, MeanAmp), data = forCorWT) +\n  geom_point() +\n  geom_smooth(method=\"lm\") +\n  ggtitle(\"Just White-tool errors\")\n\ncor.test(forCorWT$WT, forCorWT$MeanAmp)\n\n# Just White-gun errors --------------------------------------------------\nWG = filter(dat, Condition == \"White_gun\") %>% \n  select(Subject, MeanAmp) %>% \n  group_by(Subject) %>% \n  summarise_each(funs(mean(., na.rm=TRUE))) %>% \n  as.data.frame()\n\nforCorWG = cbind(errors, WG)\n\nggplot(aes(WG, MeanAmp), data = forCorWG) +\n  geom_point() +\n  geom_smooth(method=\"lm\") +\n  ggtitle(\"Just White-gun errors\")\n\ncor.test(forCorWG$WG, forCorWG$MeanAmp)\n\n# Graph all together -----------------------\n\ndatcond = select(dat, -Race, -Object, -Accuracy, -Electrode, -Trial) %>% \n  group_by(Subject, Condition) %>% \n  summarise_each(funs(mean(., na.rm=TRUE))) %>% \n  as.data.frame()\n\nerrors = rename(errors, White_tool = WT,\n                Black_tool = BT,\n                White_gun = WG,\n                Black_gun = BG)\n\nfor (k in unique(datcond$Subject)) {\n  datcond$numErr[datcond$Subject == k][1] = errors[errors$Subject == k, 5] #Black-gun\n  datcond$numErr[datcond$Subject == k][2] = errors[errors$Subject == k, 4] #Black-tool\n  datcond$numErr[datcond$Subject == k][3] = errors[errors$Subject == k, 3] #White-gun\n  datcond$numErr[datcond$Subject == k][4] = errors[errors$Subject == k, 2] #White-tool\n}\n\nggplot(aes(numErr, MeanAmp), data = datcond) + #2174 is outlier in Black-Gun trials\n  facet_wrap(~Condition) +\n  geom_point() +\n  geom_smooth(method=\"lm\")\n\nggsave(\"Figure_CorrelationBetweenNumErrorsAndERN.tiff\")\n",
+    "created" : 1491240428020.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "332401527",
+    "id" : "5FDFDF8D",
+    "lastKnownWriteTime" : 1491309357,
+    "last_content_update" : 1491309357220,
+    "path" : "~/Documents/Projects/6 MLM Psychophys paper/EFbias data/9 Correlation between ERN size and numErrors.R",
+    "project_path" : "9 Correlation between ERN size and numErrors.R",
+    "properties" : {
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 7,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}
