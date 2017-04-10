@@ -2,7 +2,7 @@ require(lme4)
 require(lmerTest)
 require(dplyr)
 
-dat = read.delim("./4 quantified data/ERN_noMiss_noArt_RTaccept_noBS.txt")
+dat = read.delim("./EFbias data/4 quantified data/ERN_noMiss_noArt_RTaccept_noBS.txt")
 errDat = dat %>% filter(Accuracy == "incorrect")
 
 # add effect codes for categorical variables
@@ -18,9 +18,6 @@ errDat$Object.e[errDat$Object == "tool"] = 1
 ### 3. Looking at the ERN over the course of the experiment
 ##### - Each error occurs at original trial number
 
-**Slopes and estimates of lines are from the MLM, not fitted with OLS.  Negative is plotted downward.** 
-  
-  ``` {r trialLevel, echo = FALSE, warning = FALSE}
 # making dummy codes is redundant but comforting, so LET ME LIVE
 errDat$Race.d = NA
 errDat$Race.d[errDat$Race == "Black"] = 0
@@ -90,13 +87,8 @@ ggplot(errDat, aes(Trial, MeanAmp, alpha = Condition, color = Condition, shape =
   scale_x_continuous(expand=c(0,0)) +
   ggtitle("Trial is original trial number") +
   theme(plot.title = element_text(hjust = 0.5)) # center title
-```
 
 ##### Simple slopes
-
-Trial is scaled to range from 0 to 10 (instead of 1 to 384) so that the betas associated with trial are a little bigger (but significance testing is unaffected by linear scaling, so the test statistics and p values will be the same as if we used the unscaled Trial variable).
-
-``` {r simple, echo = FALSE}
 # rescale trial
 errDat$Trial.begin = (errDat$Trial-1)/3.83
 # shift trial to look at fixed effects at middle and end of task as well
@@ -140,25 +132,18 @@ fin = rename(fin, Estimate = est, SE = ses, ci95_lower = lbnd, ci95_upper = ubnd
 
 # display
 fin
-```  
 
 #### Model output
-The intercept, slopes of current and previous trial condition and their interaction are allowed to vary by subject. *Categorical variables are effect coded.*   
-  
-  Trial is scaled to range from 0 to 10.  
+# The intercept, slopes of current and previous trial condition and their interaction are allowed to vary by subject. *Categorical variables are effect coded.*   
+#   
+#   Trial is scaled to range from 0 to 10.  
 
-``` {r begin, echo = FALSE}
 # same model, but with effect coding
 begin.e = lmer(MeanAmp ~ Race.e*Object.e*Trial.begin + (Race.e*Object.e|Subject) + (1|Electrode:Subject), dat = errDat)
-```
 
-**Random effects:**  
-  ``` {r beginrandom, echo = FALSE}
 summary(begin.e)$varcor
-```
 
-**Fixed effects:**
-  ``` {r beginfixed, echo = FALSE} 
 round(summary(begin.e)$coefficients[c(1:3,5),1:5], digits = 4)
 round(summary(begin.e)$coefficients[c(4,6:8),1:5], digits = 3)
-```
+
+
