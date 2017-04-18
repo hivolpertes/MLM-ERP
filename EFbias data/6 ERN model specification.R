@@ -15,32 +15,42 @@ errDat$Object.e = NA
 errDat$Object.e[errDat$Object == "gun"] = -1
 errDat$Object.e[errDat$Object == "tool"] = 1
 
+
+# Grouping variables ------------------------------------------------------
+
+g1 = lmer(MeanAmp ~ 1 + (1|Subject), dat = errDat)
+g2 = lmer(MeanAmp ~ 1 + (1|Subject) + (1|Electrode), dat = errDat)
+g3 = lmer(MeanAmp ~ 1 + (1|Subject) + (1|Electrode:Subject), dat = errDat)
+
+anova(g1, g2)
+anova(g1, g3)
+
 # Not including trial -----------------------------------------------------
 
 # Model specification: start with maximal model
-m1 = lmer(MeanAmp ~ 1 + (Race.e*Object.e|Subject) + (1|Electrode:Subject), dat = errDat)
+m1 = lmer(MeanAmp ~ 1 + (Race.e*Object.e|Subject) + (1|Electrode), dat = errDat)
 summary(m1)
 
 # Final model:
-mF = lmer(MeanAmp ~ Race.e*Object.e + (Race.e*Object.e|Subject) + (1|Electrode:Subject), dat = errDat)
+mF = lmer(MeanAmp ~ Race.e*Object.e + (Race.e*Object.e|Subject) + (1|Electrode), dat = errDat)
 summary(mF)
 
 
 # Including trial ---------------------------------------------------------
 
 # Model specification: start with maximal model
-m1 = lmer(MeanAmp ~ 1 + (Race.e*Object.e*Trial|Subject) + (1|Electrode:Subject), dat = errDat)
+m1 = lmer(MeanAmp ~ 1 + (Race.e*Object.e*Trial|Subject) + (1|Electrode), dat = errDat)
 # Doesn't converge
 
-m2 = lmer(MeanAmp ~ 1 + (Race.e+Object.e+Trial|Subject) + (1|Electrode:Subject), dat = errDat)
+m2 = lmer(MeanAmp ~ 1 + (Race.e+Object.e+Trial|Subject) + (1|Electrode), dat = errDat)
 # Doesn't converge
 
-m3 = lmer(MeanAmp ~ 1 + (Object.e+Trial|Subject) + (1|Electrode:Subject), dat = errDat)
+m3 = lmer(MeanAmp ~ 1 + (Object.e+Trial|Subject) + (1|Electrode), dat = errDat)
 # Doesn't converge
 
-m4 = lmer(MeanAmp ~ 1 + (Trial|Subject) + (1|Electrode:Subject), dat = errDat)
+m4 = lmer(MeanAmp ~ 1 + (Trial|Subject) + (1|Electrode), dat = errDat)
 # Doesn't converge
 
 # Final model:
-mF = lmer(MeanAmp ~ Race.e*Object.e*Trial + (Race.e*Object.e|Subject) + (1|Electrode:Subject), dat = errDat)
+mF = lmer(MeanAmp ~ Race.e*Object.e*Trial + (Race.e*Object.e|Subject) + (1|Electrode), dat = errDat)
 summary(mF)

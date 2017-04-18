@@ -1,6 +1,6 @@
 ---
 title: ERN from EF bias
-author: Hannah, 3/7/2017
+author: Hannah, 4/18/2017
 output:
   html_document:
     highlight: pygments
@@ -18,6 +18,8 @@ require(lmerTest)
 require(colorspace)
 require(grid)
 ```
+
+**Major changes: Changed models to cross-classfied models (grouping variables are subject and electrode, where electrode is *not* nested within subject.**  
 
 Data from previously processed EEG files from CU and MU were used. Before I got them, the following was done:  
 
@@ -53,10 +55,6 @@ FZ, F3, F4, FCZ, FC3, FC4, C3, CZ, C4 (9 electrodes) were included.
 
 **Total sample is 134 subjects, 60 from CU and 74 from MU.**
 
-\textbf{Here are the number of error committed in each condition by each subject:}
-``` {r errCount, echo=F, eval=F}
-read.delim("ErrorsPerCondition.txt")
-```
 
 ### 1. Examine correlation between subjects' ERN mean amplitude and total number of errors
 
@@ -64,7 +62,7 @@ read.delim("ErrorsPerCondition.txt")
 ``` {r correl, echo=FALSE}
 dat = read.delim("./4 quantified data/ERN_noMiss_noArt_RTaccept_noBS.txt") %>% filter(Accuracy == "incorrect")
 
-errors = read.delim("./ErrorsPerCondition.txt")
+errors = read.delim("ErrorsPerCondition.txt")
 errors$Total = errors$WT + errors$WG + errors$BT + errors$BG
 
 # All errors together -----------------------------------------------------
@@ -238,12 +236,11 @@ ggplot(data=grand, aes(Time, avgElec, group = plotCondition)) +
 
 ```
   
-To test the mean amplitude of the ERNs, a model was fitted with Race and Object as predictors. The intercept, slopes of Race and Object, and their interaction were allowed to vary by subject. The intercept was allowed to vary by Electrode nested within Subject. 
+To test the mean amplitude of the ERNs, a model was fitted with Race and Object as predictors, with ERN mean amplitude as the DV (correct trials are not included). The intercept, slopes of Race and Object, and their interaction were allowed to vary by subject. The intercept was allowed to vary by Electrode (*not* nested within Subject). 
 
 Race and Object were both effect coded. 
 
 ``` {r test, echo=F}
-dat = read.delim("./4 quantified data/ERN_noMiss_noArt_RTaccept_noBS.txt")
 errDat = dat %>% filter(Accuracy == "incorrect")
 
 # add effect codes for categorical variables
@@ -256,7 +253,8 @@ errDat$Object.e[errDat$Object == "gun"] = -1
 errDat$Object.e[errDat$Object == "tool"] = 1
 
 # model specified in "6 ERN model specification.R"
-grand1 = lmer(MeanAmp ~ Race.e*Object.e + (Race.e*Object.e|Subject) + (1|Electrode:Subject), dat = errDat)
+grand1 = lmer(MeanAmp ~ Race.e*Object.e + (Race.e*Object.e|Subject) + (1|Electrode), dat = errDat)
+
 ```
   
 **Random effects:**  
@@ -276,7 +274,7 @@ round(summary(grand1)$coefficients, digits = 3)
   
 ``` {r tot, echo=F, warning=F}
 # fit model to plot simple slopes
-plot2.d = lmer(MeanAmp ~ Race*Object*Trial + (Race*Object|Subject) + (1|Electrode:Subject), dat = dat)
+plot2.d = lmer(MeanAmp ~ Race*Object*Trial + (Race*Object|Subject) + (1|Electrode), dat = errDat)
 
 parms <- fixef(plot2.d) # fixed parameters from model
 vcmat <- vcov(plot2.d) # variance/covariance matrix of fixed effects
@@ -333,28 +331,28 @@ ggplot(dat, aes(Trial, MeanAmp, alpha = Condition, color = Condition, shape = Co
   theme_bw() +
   scale_y_continuous(limits =c(-7.5, 10), expand=c(0,0)) +
   scale_x_continuous(expand=c(0,0)) +
-  ggtitle("Time-on-trial") +
+  ggtitle("Time-on-task") +
   theme(plot.title = element_text(hjust = 0.5)) # center title
 
 ```
 
 ##### Simple slopes
 
-Error order number is rescaled to range from 0 to 10. 
+Trial number is rescaled to range from 0 to 10.
 ``` {r simple3, echo = FALSE}
-dat$Trial.s = dat$Trial/38.4
+errDat$Trial.s = errDat$Trial/38.4
 
-plot2.d = lmer(MeanAmp ~ Race*Object*Trial.s + (Race*Object|Subject) + (1|Electrode:Subject), dat = dat)
+plot2.d = lmer(MeanAmp ~ Race*Object*Trial.s + (Race*Object|Subject) + (1|Electrode), dat = errDat)
 
 parms <- fixef(plot2.d) # fixed parameters from model
 vcmat <- vcov(plot2.d) # variance/covariance matrix of fixed effects
 
 ## each row of this matrix defines entries of parms that we want to combine:
 Tmat <- matrix(NA,4,8)
-Tmat[1,] <- c(rep(0,3),1,0,0,0,0) # weights for estimates for current = 0, previous = 0 (current compat-previous compat)
-Tmat[2,] <- c(rep(0,3),1,0,0,1,0) # weights for estimates for current = 0, previous = 1 (current compat-previous incompat)
-Tmat[3,] <- c(rep(0,3),1,0,1,0,0) # weights for estimates for current = 1, previous = 0 (current incompat-previous compat)
-Tmat[4,] <- c(rep(0,3),1,0,1,1,1) # weights for estimates for current = 1, previous = 1 (current incompat-previous incompat)
+Tmat[1,] <- c(rep(0,3),1,0,0,0,0) # weights for estimates for race = 0, object = 0 
+Tmat[2,] <- c(rep(0,3),1,0,0,1,0) # weights for estimates for race = 0, object = 1 
+Tmat[3,] <- c(rep(0,3),1,0,1,0,0) # weights for estimates for race = 1, object = 0 
+Tmat[4,] <- c(rep(0,3),1,0,1,1,1) # weights for estimates for race = 1, object = 1 
 
 parest <- Tmat %*% parms          # see above for notation
 newvc <- Tmat %*% vcmat %*% t(Tmat)
@@ -383,22 +381,13 @@ fin
 ```  
 
 #### Model output
-The intercept, slopes of current and previous trial condition and their interaction are allowed to vary by subject. *Categorical variables are effect coded.*   
+The intercept, slopes of Race and Object and their interaction are allowed to vary by subject. The intercept is additionally allowed to vary by electrode (*not* nested within subject). *Categorical variables are effect coded.*   
   
-Trial is rescaled to range from 0 to 10.   
+Trial is rescaled to range from 0 to 10. Each data point corresponds to ERN mean amplitude following an error, with the error's original trial number on the x-axis. This spacing maintains time-on-task as the x variable. Fixed effects of Race, Object, and their interaction are estimated at the beginning of the task.
 
 ``` {r tot2, echo = FALSE}
 # same model, but with effect coding
-# add effect codes for categorical variables
-dat$Race.e = NA
-dat$Race.e[dat$Race == "Black"] = -1
-dat$Race.e[dat$Race == "White"] = 1
-
-dat$Object.e = NA
-dat$Object.e[dat$Object == "gun"] = -1
-dat$Object.e[dat$Object == "tool"] = 1
-
-tot = lmer(MeanAmp ~ Race.e*Object.e*Trial.s + (Race.e*Object.e|Subject) + (1|Electrode:Subject), dat = dat)
+tot = lmer(MeanAmp ~ Race.e*Object.e*Trial.s + (Race.e*Object.e|Subject) + (1|Electrode), dat = errDat)
 ```
   
 **Random effects:**  
@@ -413,7 +402,7 @@ round(summary(tot)$coefficients[c(4,6:8),1:5], digits = 3)
 ```
 
 ### 4. Looking at the ERN over the course of the experiment: Ordered errors
-##### - Each error is order for each subject
+##### - Each error is ordered for each subject (i.e., error #1 for subject 10 and error #1 for subject 20 now have the same x-value, even if it happened on trial 12 for subject 10 and trial 50 for subject 20). Trial-type is ignored when ordering errors.
   
 **Slopes and estimates of lines are from the MLM, not fitted with OLS.  Negative is plotted downward.** 
   
@@ -429,7 +418,7 @@ for (i in unique(dat$Subject)) {
 }
 
 # fit model to plot simple slopes
-plot3.d = lmer(MeanAmp ~ Race*Object*TrialOrder + (Race*Object|Subject) + (1|Electrode:Subject), dat = trialOrderDat)
+plot3.d = lmer(MeanAmp ~ Race*Object*TrialOrder + (Race*Object|Subject) + (1|Electrode), dat = trialOrderDat)
 
 parms <- fixef(plot3.d) # fixed parameters from model
 vcmat <- vcov(plot3.d) # variance/covariance matrix of fixed effects
@@ -497,17 +486,17 @@ Error order number is rescaled to range from 0 to 10.
 ``` {r simple4, echo = FALSE}
 trialOrderDat$TrialOrder.s = trialOrderDat$TrialOrder/14.1
 
-plot4.d = lmer(MeanAmp ~ Race*Object*TrialOrder.s + (Race*Object|Subject) + (1|Electrode:Subject), dat = trialOrderDat)
+plot4.d = lmer(MeanAmp ~ Race*Object*TrialOrder.s + (Race*Object|Subject) + (1|Electrode), dat = trialOrderDat)
 
 parms <- fixef(plot4.d) # fixed parameters from model
 vcmat <- vcov(plot4.d) # variance/covariance matrix of fixed effects
 
 ## each row of this matrix defines entries of parms that we want to combine:
 Tmat <- matrix(NA,4,8)
-Tmat[1,] <- c(rep(0,3),1,0,0,0,0) # weights for estimates for current = 0, previous = 0 (current compat-previous compat)
-Tmat[2,] <- c(rep(0,3),1,0,0,1,0) # weights for estimates for current = 0, previous = 1 (current compat-previous incompat)
-Tmat[3,] <- c(rep(0,3),1,0,1,0,0) # weights for estimates for current = 1, previous = 0 (current incompat-previous compat)
-Tmat[4,] <- c(rep(0,3),1,0,1,1,1) # weights for estimates for current = 1, previous = 1 (current incompat-previous incompat)
+Tmat[1,] <- c(rep(0,3),1,0,0,0,0) # weights for estimates for race = 0, object = 0 (Black-gun)
+Tmat[2,] <- c(rep(0,3),1,0,0,1,0) # weights for estimates for race = 0, object = 1 (Black-tool)
+Tmat[3,] <- c(rep(0,3),1,0,1,0,0) # weights for estimates for race = 1, object = 0 (White-gun)
+Tmat[4,] <- c(rep(0,3),1,0,1,1,1) # weights for estimates for race = 1, object = 1 (White-tool)
 
 parest <- Tmat %*% parms          # see above for notation
 newvc <- Tmat %*% vcmat %*% t(Tmat)
@@ -536,14 +525,22 @@ fin
 ```  
 
 #### Model output
-The intercept, slopes of current and previous trial condition and their interaction are allowed to vary by subject. *Categorical variables are effect coded.*   
+The intercept, slopes of Race and Object and their interaction are allowed to vary by subject. Additionally, the intercept is allowed to vary by Electrode. *Categorical variables are effect coded.*   
   
 For each subject, error trials are numbered (in order) and rescaled to range from 0 to 10.   
 
 ``` {r so, echo = FALSE}
 # same model, but with effect coding
+# add effect codes for categorical variables
+trialOrderDat$Race.e = NA
+trialOrderDat$Race.e[trialOrderDat$Race == "Black"] = -1
+trialOrderDat$Race.e[trialOrderDat$Race == "White"] = 1
 
-subord = lmer(MeanAmp ~ Race.e*Object.e*TrialOrder.s + (Race.e*Object.e|Subject) + (1|Electrode:Subject), dat = trialOrderDat)
+trialOrderDat$Object.e = NA
+trialOrderDat$Object.e[trialOrderDat$Object == "gun"] = -1
+trialOrderDat$Object.e[trialOrderDat$Object == "tool"] = 1
+
+subord = lmer(MeanAmp ~ Race.e*Object.e*TrialOrder.s + (Race.e*Object.e|Subject) + (1|Electrode), dat = trialOrderDat)
 ```
   
 **Random effects:**  
@@ -558,7 +555,7 @@ round(summary(subord)$coefficients[c(4,6:8),1:5], digits = 3)
 ```
 
 ### 5. Looking at the ERN over the course of the experiment: Ordered errors, centered by subject
-##### - Each error is order for each subject, then centered for each subject
+##### - Each error is ordered for each subject, then centered for each subject
   
 **Slopes and estimates of lines are from the MLM, not fitted with OLS.  Negative is plotted downward.** 
   
@@ -571,7 +568,7 @@ for (i in unique(dat$Subject)) {
 }
 
 # fit model to plot simple slopes
-plot5.d = lmer(MeanAmp ~ Race*Object*TrialOrder.c + (Race*Object|Subject) + (1|Electrode:Subject), dat = trialOrderDat)
+plot5.d = lmer(MeanAmp ~ Race*Object*TrialOrder.c + (Race*Object|Subject) + (1|Electrode), dat = trialOrderDat)
 
 parms <- fixef(plot5.d) # fixed parameters from model
 vcmat <- vcov(plot5.d) # variance/covariance matrix of fixed effects
@@ -637,19 +634,19 @@ ggplot(trialOrderDat, aes(TrialOrder.c, MeanAmp, alpha = Condition, color = Cond
 
 Error order number is rescaled to range from -5 to 5. 
 ``` {r simple5, echo = FALSE}
-trialOrderDat$TrialOrder.c.s = trialOrderDat$TrialOrder.c/14
+trialOrderDat$TrialOrder.c.s = trialOrderDat$TrialOrder.c/14.1
 
-plot5.d = lmer(MeanAmp ~ Race*Object*TrialOrder.c.s + (Race*Object|Subject) + (1|Electrode:Subject), dat = trialOrderDat)
+plot5.d = lmer(MeanAmp ~ Race*Object*TrialOrder.c.s + (Race*Object|Subject) + (1|Electrode), dat = trialOrderDat)
 
 parms <- fixef(plot5.d) # fixed parameters from model
 vcmat <- vcov(plot5.d) # variance/covariance matrix of fixed effects
 
 ## each row of this matrix defines entries of parms that we want to combine:
 Tmat <- matrix(NA,4,8)
-Tmat[1,] <- c(rep(0,3),1,0,0,0,0) # weights for estimates for current = 0, previous = 0 (current compat-previous compat)
-Tmat[2,] <- c(rep(0,3),1,0,0,1,0) # weights for estimates for current = 0, previous = 1 (current compat-previous incompat)
-Tmat[3,] <- c(rep(0,3),1,0,1,0,0) # weights for estimates for current = 1, previous = 0 (current incompat-previous compat)
-Tmat[4,] <- c(rep(0,3),1,0,1,1,1) # weights for estimates for current = 1, previous = 1 (current incompat-previous incompat)
+Tmat[1,] <- c(rep(0,3),1,0,0,0,0) # weights for estimates for race = 0, object = 0 
+Tmat[2,] <- c(rep(0,3),1,0,0,1,0) # weights for estimates for race = 0, object = 1
+Tmat[3,] <- c(rep(0,3),1,0,1,0,0) # weights for estimates for race = 1, object = 0
+Tmat[4,] <- c(rep(0,3),1,0,1,1,1) # weights for estimates for race = 1, object = 1
 
 parest <- Tmat %*% parms          # see above for notation
 newvc <- Tmat %*% vcmat %*% t(Tmat)
@@ -678,22 +675,13 @@ fin
 ```  
 
 #### Model output
-The intercept, slopes of current and previous trial condition and their interaction are allowed to vary by subject. *Categorical variables are effect coded.*   
+The intercept, slopes of Race and Object and their interaction are allowed to vary by subject. The intercept is allowed to vary by electrode. *Categorical variables are effect coded.*   
   
-For each subject, error trials are numbered (in order), centered, and rescaled to range from -10 to 10.   
+For each subject, error trials are numbered (in order), centered, and rescaled to range from -5 to 5.   
 
 ``` {r sc, echo = FALSE}
 # same model, but with effect coding
-# add effect codes for categorical variables
-trialOrderDat$Race.e = NA
-trialOrderDat$Race.e[trialOrderDat$Race == "Black"] = -1
-trialOrderDat$Race.e[trialOrderDat$Race == "White"] = 1
-
-trialOrderDat$Object.e = NA
-trialOrderDat$Object.e[trialOrderDat$Object == "gun"] = -1
-trialOrderDat$Object.e[trialOrderDat$Object == "tool"] = 1
-
-subcentered = lmer(MeanAmp ~ Race.e*Object.e*TrialOrder.c.s + (Race.e*Object.e|Subject) + (1|Electrode:Subject), dat = trialOrderDat)
+subcentered = lmer(MeanAmp ~ Race.e*Object.e*TrialOrder.c.s + (Race.e*Object.e|Subject) + (1|Electrode), dat = trialOrderDat)
 ```
   
 **Random effects:**  
@@ -703,6 +691,166 @@ summary(subcentered)$varcor
 
 **Fixed effects:**
 ``` {r sc_fixed, echo = FALSE} 
+round(summary(subcentered)$coefficients[c(1:3,5),1:5], digits = 4)
+round(summary(subcentered)$coefficients[c(4,6:8),1:5], digits = 3)
+```
+
+
+### 6. Looking at the ERN over the course of the experiment: Ordered errors by trial type
+##### - Each error is ordered for each subject, separately for each trial type
+  
+**Slopes and estimates of lines are from the MLM, not fitted with OLS.  Negative is plotted downward.** 
+  
+``` {r subtrialtype, echo=F, warning=F}
+
+trialTypeList = c("Black_gun", "Black_tool", "White_gun", "White_tool")
+
+trialTypeDat = NULL
+# order errors by trial type for each subject
+for (i in unique(dat$Subject)) {
+  for (l in trialTypeList) {
+    # take error trials, renumber them by order
+    err = dat[dat$Subject == i & dat$Condition == l,] %>% 
+      filter(!is.na(Trial))
+    err$TrialOrder.type = rep(1:length(unique(err$Trial)), each = 9)
+    
+    trialTypeDat = rbind(trialTypeDat, err)
+  }
+}
+
+# fit model to plot simple slopes
+plot5.d = lmer(MeanAmp ~ Race*Object*TrialOrder.type + (Race*Object|Subject) + (1|Electrode), dat = trialTypeDat)
+
+parms <- fixef(plot5.d) # fixed parameters from model
+vcmat <- vcov(plot5.d) # variance/covariance matrix of fixed effects
+
+# First calculate slopes
+
+## each row of this matrix defines entries of parms that we want to combine:
+STmat <- matrix(NA,4,8)
+STmat[1,] <- c(rep(0,3),1,0,0,0,0) # slope for race = 0, object = 0 (black-gun)
+STmat[2,] <- c(rep(0,3),1,0,0,1,0) # slope for race = 0, object = 1 (black-tool)
+STmat[3,] <- c(rep(0,3),1,0,1,0,0) # slope for race = 1, object = 0 (white-gun)
+STmat[4,] <- c(rep(0,3),1,0,1,1,1) # slope for race = 1, object = 1 (white-tool)
+
+Sparest <- STmat %*% parms          # see above for notation
+Snewvc <- STmat %*% vcmat %*% t(STmat)
+Sses <- sqrt(diag(Snewvc)) 
+
+slopes = cbind(Sparest, Sses) %>% as.data.frame()
+names(slopes) = c("Slope", "Slope_SE")
+
+# Next calculate intercepts
+
+## each row of this matrix defines entries of parms that we want to combine:
+ITmat <- matrix(NA,4,8)
+ITmat[1,] <- c(1,0,0,0,0,rep(0,3)) # intercept for race = 0, object = 0 (black-gun)
+ITmat[2,] <- c(1,0,1,0,0,rep(0,3)) # intercept for race = 0, object = 1 (black-tool)
+ITmat[3,] <- c(1,1,0,0,0,rep(0,3)) # intercept for race = 1, object = 0 (white-gun)
+ITmat[4,] <- c(1,1,0,0,1,rep(0,3)) # intercept for race = 1, object = 1 (white-tool)
+
+Iparest <- ITmat %*% parms          # see above for notation
+Inewvc <- ITmat %*% vcmat %*% t(ITmat)
+Ises <- sqrt(diag(Inewvc)) 
+
+intercepts = cbind(Iparest, Ises) %>% as.data.frame()
+names(intercepts) = c("Intercept", "Intercept_SE")
+
+forPlotting = cbind(slopes, intercepts)
+
+# label for understanding
+forPlotting$Condition = c("Black_gun", 
+                          "Black_tool",
+                          "White_gun",
+                          "White_tool")
+
+
+# BINGO -------------------------------------------------------------------
+ggplot(trialTypeDat, aes(TrialOrder.type, MeanAmp, alpha = Condition, color = Condition, shape = Condition)) +
+  geom_point() +
+  geom_abline(data = forPlotting, aes(intercept=Intercept, slope=Slope, color = Condition), size=1)+
+  labs(x = "Error number, by trial type", y = "ERN mean amplitude (uV)") +
+  scale_shape_manual(values=c(1,19,1,19)) +
+  scale_alpha_manual(values=c(.1,.1,.1,.1)) +
+  scale_color_manual(values=c("dodgerblue", "blue", "red", "darkred")) +
+  theme_bw() +
+  scale_y_continuous(limits =c(-7.5, 10), expand=c(0,0)) +
+  scale_x_continuous(expand=c(0,0)) +
+  ggtitle("Errors are ordered by trial type") +
+  theme(plot.title = element_text(hjust = 0.5)) # center title
+
+```
+
+##### Simple slopes
+
+Error order number is rescaled to range from 0 to 10. 
+``` {r simple6, echo = FALSE}
+trialTypeDat$TrialOrder.type.s = trialTypeDat$TrialOrder.type/5.9
+
+plot5.d = lmer(MeanAmp ~ Race*Object*TrialOrder.type.s + (Race*Object|Subject) + (1|Electrode), dat = trialTypeDat)
+
+parms <- fixef(plot5.d) # fixed parameters from model
+vcmat <- vcov(plot5.d) # variance/covariance matrix of fixed effects
+
+## each row of this matrix defines entries of parms that we want to combine:
+Tmat <- matrix(NA,4,8)
+Tmat[1,] <- c(rep(0,3),1,0,0,0,0) # weights for estimates for race = 0, object = 0 
+Tmat[2,] <- c(rep(0,3),1,0,0,1,0) # weights for estimates for race = 0, object = 1
+Tmat[3,] <- c(rep(0,3),1,0,1,0,0) # weights for estimates for race = 1, object = 0
+Tmat[4,] <- c(rep(0,3),1,0,1,1,1) # weights for estimates for race = 1, object = 1
+
+parest <- Tmat %*% parms          # see above for notation
+newvc <- Tmat %*% vcmat %*% t(Tmat)
+ses <- sqrt(diag(newvc)) 
+
+## final results
+fin = cbind(parest, ses) %>% as.data.frame()
+names(fin) = c("est", "ses")
+
+# to calculate 95% CI intervals, lower bound = m - 2*SE, upper bound = m + 2*SE
+
+fin$lbnd = fin$est - 2*fin$ses
+fin$ubnd = fin$est + 2*fin$ses
+
+fin = format(fin, digits = 3)
+
+# relabel for understanding
+fin$Race = c("Black", "Black", "White", "White")
+fin$Object = c("gun", "tool", "gun", "tool")
+fin$Color = c("light blue", "dark blue", "light red", "dark red")
+
+fin = rename(fin, Estimate = est, SE = ses, ci95_lower = lbnd, ci95_upper = ubnd)
+
+# display
+fin
+```  
+
+#### Model output
+The intercept, slopes of Race and Object and their interaction are allowed to vary by subject. The intercept is allowed to vary by electrode. *Categorical variables are effect coded.*   
+  
+For each subject, error trials are numbered (in order) separately for each trial type and rescaled to range from 0 to 10.   
+
+``` {r st, echo = FALSE}
+# same model, but with effect coding
+trialTypeDat$Race.e = NA
+trialTypeDat$Race.e[trialTypeDat$Race == "Black"] = -1
+trialTypeDat$Race.e[trialTypeDat$Race == "White"] = 1
+
+trialTypeDat$Object.e = NA
+trialTypeDat$Object.e[trialTypeDat$Object == "gun"] = -1
+trialTypeDat$Object.e[trialTypeDat$Object == "tool"] = 1
+
+
+subcentered = lmer(MeanAmp ~ Race.e*Object.e*TrialOrder.type.s + (Race.e*Object.e|Subject) + (1|Electrode), dat = trialTypeDat)
+```
+  
+**Random effects:**  
+``` {r st_random, echo = FALSE}
+summary(subcentered)$varcor
+```
+
+**Fixed effects:**
+``` {r st_fixed, echo = FALSE} 
 round(summary(subcentered)$coefficients[c(1:3,5),1:5], digits = 4)
 round(summary(subcentered)$coefficients[c(4,6:8),1:5], digits = 3)
 ```
