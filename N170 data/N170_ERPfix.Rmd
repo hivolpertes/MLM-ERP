@@ -45,8 +45,8 @@ ERPline = geom_line(lwd=1.1,
                     linetype="solid",
                     aes(color = Race))
 
-condColors <- c("Black" = "red3", 
-                "White" = "dodgerblue4")
+condColors <- c("Black" = "blue", 
+                "White" = "dodgerblue")
 
 none = element_blank() 
 
@@ -99,8 +99,15 @@ ggplot(data=forfacetting, aes(Time, MeanAmp, group = Race)) +
   ylab("Amplitude (uV)") +
   scale_color_manual(values=condColors) +
 #  ggtitle("Average of TP7, TP8, P7, P8") +
-  theme(plot.title = element_text(hjust = 0.5)) # center title
+  theme(plot.title = element_text(hjust = 0.5),# center title
+        axis.title = element_text(size = 20),
+        axis.text.y = element_text(size = 16),
+        axis.text.x = element_text(size = 12),
+        legend.title = element_text(size = 20),
+        legend.text = element_text(size = 16),
+        strip.text = element_text(size = 16)) 
 
+ggsave("./N170 data/FacettedGrandAverages_N170.tiff")
 
 ```
   
@@ -116,7 +123,6 @@ dat$Race.e = NA
 dat$Race.e[dat$Race == "Black"] = -1
 dat$Race.e[dat$Race == "White"] = 1
 
-# model specified in "6 ERN model specification.R"
 grand1 = lmer(MeanAmp ~ Race.e + (Race.e|Subject) + (1|Electrode:Subject), dat = dat)
 ```
   
@@ -184,7 +190,7 @@ forPlotting$Race = c("Black", "White")
 ggplot(dat, aes(Trial, MeanAmp, alpha = Race, color = Race, shape = Race)) +
   geom_point() +
   geom_abline(data = forPlotting, aes(intercept=Intercept, slope=Slope, color = Race), size=1)+
-  labs(x = "Trial", y = "Mean Amplitude") +
+  labs(x = "Trial", y = "N170 Mean Amplitude") +
 #  scale_shape_manual(values=c(1,19,1,19)) +
   scale_alpha_manual(values=c(.1,.1,.1,.1)) +
   scale_color_manual(values=c("blue", "dodgerblue")) +
@@ -192,7 +198,13 @@ ggplot(dat, aes(Trial, MeanAmp, alpha = Race, color = Race, shape = Race)) +
   scale_y_continuous(limits =c(-5, 3), expand=c(0,0)) +
   scale_x_continuous(expand=c(0,0)) +
 #  ggtitle("Trial is original trial number") +
-  theme(plot.title = element_text(hjust = 0.5)) # center title
+  theme(plot.title = element_text(hjust = 0.5),# center title
+        axis.title = element_text(size = 20),
+        axis.text = element_text(size = 16),
+        legend.title = element_text(size = 20),
+        legend.text = element_text(size = 16)) 
+
+ggsave("./N170 data/SimpleSlopes_N170.tiff")
 ```
 
 ##### Simple slopes
