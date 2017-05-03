@@ -1,24 +1,25 @@
 grand = read.delim("./EFbias data/5 waveforms/data/Data for grand averages_allelec.txt")
 
-# plot grand averages
+# plot grand averages for book chapter, without CRN or interval window ERN is quantified in
 require(ggplot2)
-require(colorspace)
-require(grid)
 
-condLine <- c("Black_gun_correct" = "dashed",    # CRN is dashed
-              "Black_tool_correct" = "dashed", 
-              "White_gun_correct" = "dashed", 
-              "White_tool_correct" = "dashed",
+grand = grand[grep("incorrect", grand$plotCondition),]
+grand$plotCondition = factor(grand$plotCondition)
+
+condLine <- c(#"Black_gun_correct" = "dashed",    # CRN is dashed
+              #"Black_tool_correct" = "dashed", 
+              #"White_gun_correct" = "dashed", 
+              #"White_tool_correct" = "dashed",
               "Black_gun_incorrect" = "solid",  # ERN is solid
               "Black_tool_incorrect" = "solid", 
               "White_gun_incorrect" = "solid", 
               "White_tool_incorrect" = "solid")
 
 
-condColors <- c("Black_gun_correct" = "red", 
-                "Black_tool_correct" = "darkred", 
-                "White_gun_correct" = "gray44", 
-                "White_tool_correct" = "black",
+condColors <- c(#"Black_gun_correct" = "red", 
+                #"Black_tool_correct" = "darkred", 
+                #"White_gun_correct" = "gray44", 
+                #"White_tool_correct" = "black",
                 "Black_gun_incorrect" = "red", 
                 "Black_tool_incorrect" = "darkred", 
                 "White_gun_incorrect" = "gray44", 
@@ -41,7 +42,7 @@ none = element_blank()
 # average of all 9 electrodes
 ggplot(data=grand, aes(Time, avgElec, group = plotCondition)) + 
   ERPline + 
-  ERNbox + 
+#  ERNbox + 
   theme_bw() + 
   theme(panel.grid.major.x = none, panel.grid.minor.x = none) +
   scale_x_continuous("Time (ms)", 
@@ -57,5 +58,4 @@ ggplot(data=grand, aes(Time, avgElec, group = plotCondition)) +
   ggtitle("Average of fronto-central electrodes") +
   theme(plot.title = element_text(hjust = 0.5)) # center title
 
-ggsave("./EFbias data/5 waveforms/Grand_9elec.tiff", width=12, height=8)
 

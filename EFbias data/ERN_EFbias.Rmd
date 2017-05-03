@@ -15,8 +15,6 @@ require(dplyr)
 require(ggplot2)
 require(lme4)
 require(lmerTest)
-require(colorspace)
-require(grid)
 ```
 
 **Major changes: Changed models to cross-classfied models (grouping variables are subject and electrode, where electrode is *not* nested within subject.**  
@@ -239,7 +237,7 @@ ggplot(data=grand, aes(Time, avgElec, group = plotCondition)) +
         #legend.text = element_text(size = 16),
         strip.text = element_text(size = 16)) 
 
-ggsave("EFbias data/GrandAverage_ERN.tiff")
+ggsave("GrandAverage_ERN.tiff")
 ```
   
 To test the mean amplitude of the ERNs, a model was fitted with Race and Object as predictors, with ERN mean amplitude as the DV (correct trials are not included). The intercept, slopes of Race and Object, and their interaction were allowed to vary by subject. The intercept was allowed to vary by Electrode (*not* nested within Subject). 
@@ -295,11 +293,6 @@ STmat[3,] <- c(rep(0,3),1,0,1,0,0) # slope for race = 1, object = 0 (white-gun)
 STmat[4,] <- c(rep(0,3),1,0,1,1,1) # slope for race = 1, object = 1 (white-tool)
 
 Sparest <- STmat %*% parms          # see above for notation
-Snewvc <- STmat %*% vcmat %*% t(STmat)
-Sses <- sqrt(diag(Snewvc)) 
-
-slopes = cbind(Sparest, Sses) %>% as.data.frame()
-names(slopes) = c("Slope", "Slope_SE")
 
 # Next calculate intercepts
 
@@ -308,16 +301,12 @@ ITmat <- matrix(NA,4,8)
 ITmat[1,] <- c(1,0,0,0,0,rep(0,3)) # intercept for race = 0, object = 0 (black-gun)
 ITmat[2,] <- c(1,0,1,0,0,rep(0,3)) # intercept for race = 0, object = 1 (black-tool)
 ITmat[3,] <- c(1,1,0,0,0,rep(0,3)) # intercept for race = 1, object = 0 (white-gun)
-ITmat[4,] <- c(1,1,0,0,1,rep(0,3)) # intercept for race = 1, object = 1 (white-tool)
+ITmat[4,] <- c(1,1,1,0,1,rep(0,3)) # intercept for race = 1, object = 1 (white-tool)
 
 Iparest <- ITmat %*% parms          # see above for notation
-Inewvc <- ITmat %*% vcmat %*% t(ITmat)
-Ises <- sqrt(diag(Inewvc)) 
 
-intercepts = cbind(Iparest, Ises) %>% as.data.frame()
-names(intercepts) = c("Intercept", "Intercept_SE")
-
-forPlotting = cbind(slopes, intercepts)
+forPlotting = cbind(Sparest, Iparest) %>% as.data.frame()
+names(forPlotting) = c("Slope", "Intercept")
 
 # label for understanding
 forPlotting$Condition = c("Black_gun", 
@@ -325,17 +314,52 @@ forPlotting$Condition = c("Black_gun",
                           "White_gun",
                           "White_tool")
 
+# calculate SE for each trial, separately for each race
+SETmat <- matrix(NA,1024,8) # 1024 rows because 256 trials x 4 conditions
+# fill columns with appropriate weights.
+SETmat[,1] = 1 
+SETmat[,2] = rep(c(0, 0, 1, 1), each = 256) # 0 for first two conditions, 1 for second two conditions
+SETmat[,3] = rep(c(0, 1, 0, 1), each = 256) 
+SETmat[,4] = rep(1:256, 4) # 1:256 in each condition
+SETmat[,5] = rep(c(0, 0, 0, 1), each = 256) 
+SETmat[,6] = c(rep(c(0, 0), each = 256), rep(1:256, 2)) # 0 for first two conditions, 1:256 for second two conditions
+SETmat[,7] = c(rep(0, 256), 1:256, rep(0, 256), 1:256) # 0 for first and third condition, 1:256 for second and last condition
+SETmat[,8] = c(rep(c(0, 0, 0), each = 256), 1:256) # 0 for first three conditions, 1:256 for last condition
 
+newvc <- SETmat %*% vcmat %*% t(SETmat)
+ses <- sqrt(diag(newvc)) # long string of SEs for each trial, first 256 are for Black faces, second 256 are for White faces
+
+SE.dat = data.frame(Condition = rep(c("Black_gun", "Black_tool", "White_gun", "White_tool"), each = 256), 
+                    Trial = rep(c(1:256), 4), 
+                    SE = ses)
+
+# sloppy, and there's probably a better way of doing this
+# but take slope and intercept and calculate all the points on the line for each trial so that I can calculate upper and lower 95% CIs 
+SE.dat$Point = NULL
+for (c in c("Black_gun", "Black_tool", "White_gun", "White_tool")) {
+  SE.dat$Point[SE.dat$Condition == c] = 
+    forPlotting$Intercept[forPlotting$Condition == c] + 1:256*forPlotting$Slope[forPlotting$Condition == c]
+}
+
+# calculate upper and lower bound (+/- 1 SE)
+SE.dat$upper = SE.dat$Point + SE.dat$SE
+SE.dat$lower = SE.dat$Point - SE.dat$SE
+
+custom = c("dodgerblue", "blue", "red", "red4")
 # BINGO -------------------------------------------------------------------
-ggplot(dat, aes(Trial, MeanAmp, alpha = Condition, color = Condition, shape = Condition)) +
-  geom_point() +
-  geom_abline(data = forPlotting, aes(intercept=Intercept, slope=Slope, color = Condition), size=1)+
+ggplot(SE.dat, aes(Trial, Point, alpha = Condition, color = Condition, shape = Condition)) +
+  geom_abline(data = forPlotting, aes(intercept=Intercept, slope=Slope, color = Condition), size=1.5)+
+  geom_ribbon(aes(ymin=lower, ymax=upper, x = Trial, fill = Condition),
+              linetype = "dotted",
+              alpha = .25,
+              color = rep(custom, each=256),
+              fill = rep(custom, each=256)) +
   labs(x = "Trial", y = "ERN mean amplitude (uV)") +
   scale_shape_manual(values=c(1,19,1,19)) +
   scale_alpha_manual(values=c(.1,.1,.1,.1)) +
-  scale_color_manual(values=c("dodgerblue", "blue", "red", "darkred")) +
+  scale_color_manual(values=custom) +
   theme_bw() +
-  scale_y_continuous(limits =c(-7.5, 10), expand=c(0,0)) +
+  scale_y_continuous(limits =c(-5, 2.5), expand=c(0,0)) +
   scale_x_continuous(expand=c(0,0)) +
   ggtitle("Time-on-task") +
   theme(plot.title = element_text(hjust = 0.5),# center title
@@ -346,7 +370,7 @@ ggplot(dat, aes(Trial, MeanAmp, alpha = Condition, color = Condition, shape = Co
         #legend.text = element_text(size = 16),
         strip.text = element_text(size = 16)) 
 
-ggsave("EFbias data/SimpleSlopes_TimeOnTask.tiff")
+ggsave("SimpleSlopes_TimeOnTask.tiff")
 ```
 
 ##### Simple slopes
@@ -446,11 +470,6 @@ STmat[3,] <- c(rep(0,3),1,0,1,0,0) # slope for race = 1, object = 0 (white-gun)
 STmat[4,] <- c(rep(0,3),1,0,1,1,1) # slope for race = 1, object = 1 (white-tool)
 
 Sparest <- STmat %*% parms          # see above for notation
-Snewvc <- STmat %*% vcmat %*% t(STmat)
-Sses <- sqrt(diag(Snewvc)) 
-
-slopes = cbind(Sparest, Sses) %>% as.data.frame()
-names(slopes) = c("Slope", "Slope_SE")
 
 # Next calculate intercepts
 
@@ -459,16 +478,12 @@ ITmat <- matrix(NA,4,8)
 ITmat[1,] <- c(1,0,0,0,0,rep(0,3)) # intercept for race = 0, object = 0 (black-gun)
 ITmat[2,] <- c(1,0,1,0,0,rep(0,3)) # intercept for race = 0, object = 1 (black-tool)
 ITmat[3,] <- c(1,1,0,0,0,rep(0,3)) # intercept for race = 1, object = 0 (white-gun)
-ITmat[4,] <- c(1,1,0,0,1,rep(0,3)) # intercept for race = 1, object = 1 (white-tool)
+ITmat[4,] <- c(1,1,1,0,1,rep(0,3)) # intercept for race = 1, object = 1 (white-tool)
 
 Iparest <- ITmat %*% parms          # see above for notation
-Inewvc <- ITmat %*% vcmat %*% t(ITmat)
-Ises <- sqrt(diag(Inewvc)) 
 
-intercepts = cbind(Iparest, Ises) %>% as.data.frame()
-names(intercepts) = c("Intercept", "Intercept_SE")
-
-forPlotting = cbind(slopes, intercepts)
+forPlotting = cbind(Sparest, Iparest) %>% as.data.frame()
+names(forPlotting) = c("Slope", "Intercept")
 
 # label for understanding
 forPlotting$Condition = c("Black_gun", 
@@ -476,20 +491,61 @@ forPlotting$Condition = c("Black_gun",
                           "White_gun",
                           "White_tool")
 
+# calculate SE for each trial, separately for each race
+SETmat <- matrix(NA,1024,8) # 1024 rows because 256 trials x 4 conditions
+# fill columns with appropriate weights.
+SETmat[,1] = 1 
+SETmat[,2] = rep(c(0, 0, 1, 1), each = 256) # 0 for first two conditions, 1 for second two conditions
+SETmat[,3] = rep(c(0, 1, 0, 1), each = 256) 
+SETmat[,4] = rep(1:256, 4) # 1:256 in each condition
+SETmat[,5] = rep(c(0, 0, 0, 1), each = 256) 
+SETmat[,6] = c(rep(c(0, 0), each = 256), rep(1:256, 2)) # 0 for first two conditions, 1:256 for second two conditions
+SETmat[,7] = c(rep(0, 256), 1:256, rep(0, 256), 1:256) # 0 for first and third condition, 1:256 for second and last condition
+SETmat[,8] = c(rep(c(0, 0, 0), each = 256), 1:256) # 0 for first three conditions, 1:256 for last condition
 
+newvc <- SETmat %*% vcmat %*% t(SETmat)
+ses <- sqrt(diag(newvc)) # long string of SEs for each trial, first 256 are for Black faces, second 256 are for White faces
+
+SE.dat = data.frame(Condition = rep(c("Black_gun", "Black_tool", "White_gun", "White_tool"), each = 256), 
+                    Trial = rep(c(1:256), 4), 
+                    SE = ses)
+
+# sloppy, and there's probably a better way of doing this
+# but take slope and intercept and calculate all the points on the line for each trial so that I can calculate upper and lower 95% CIs 
+SE.dat$Point = NULL
+for (c in c("Black_gun", "Black_tool", "White_gun", "White_tool")) {
+  SE.dat$Point[SE.dat$Condition == c] = 
+    forPlotting$Intercept[forPlotting$Condition == c] + 1:256*forPlotting$Slope[forPlotting$Condition == c]
+}
+
+# calculate upper and lower bound (+/- 1 SE)
+SE.dat$upper = SE.dat$Point + SE.dat$SE
+SE.dat$lower = SE.dat$Point - SE.dat$SE
+
+custom = c("dodgerblue", "blue", "red", "red4")
 # BINGO -------------------------------------------------------------------
-ggplot(trialOrderDat, aes(TrialOrder, MeanAmp, alpha = Condition, color = Condition, shape = Condition)) +
-  geom_point() +
-  geom_abline(data = forPlotting, aes(intercept=Intercept, slope=Slope, color = Condition), size=1)+
+ggplot(SE.dat, aes(Trial, Point, alpha = Condition, color = Condition, shape = Condition)) +
+  geom_abline(data = forPlotting, aes(intercept=Intercept, slope=Slope, color = Condition), size=1.5)+
+  geom_ribbon(aes(ymin=lower, ymax=upper, x = Trial, fill = Condition),
+              linetype = "dotted",
+              alpha = .3,
+              color = rep(custom, each=256),
+              fill = rep(custom, each=256)) +
   labs(x = "Error number", y = "ERN mean amplitude (uV)") +
   scale_shape_manual(values=c(1,19,1,19)) +
   scale_alpha_manual(values=c(.1,.1,.1,.1)) +
-  scale_color_manual(values=c("dodgerblue", "blue", "red", "darkred")) +
+  scale_color_manual(values=custom) +
   theme_bw() +
-  scale_y_continuous(limits =c(-7.5, 10), expand=c(0,0)) +
+  scale_y_continuous(limits =c(-5, 2.5), expand=c(0,0)) +
   scale_x_continuous(expand=c(0,0)) +
   ggtitle("Errors are ordered") +
-  theme(plot.title = element_text(hjust = 0.5)) # center title
+  theme(plot.title = element_text(hjust = 0.5),# center title
+        axis.title = element_text(size = 20),
+        axis.text.y = element_text(size = 16),
+        axis.text.x = element_text(size = 12),
+        #legend.title = element_text(size = 20),
+        #legend.text = element_text(size = 16),
+        strip.text = element_text(size = 16)) 
 
 ```
 
@@ -596,11 +652,6 @@ STmat[3,] <- c(rep(0,3),1,0,1,0,0) # slope for race = 1, object = 0 (white-gun)
 STmat[4,] <- c(rep(0,3),1,0,1,1,1) # slope for race = 1, object = 1 (white-tool)
 
 Sparest <- STmat %*% parms          # see above for notation
-Snewvc <- STmat %*% vcmat %*% t(STmat)
-Sses <- sqrt(diag(Snewvc)) 
-
-slopes = cbind(Sparest, Sses) %>% as.data.frame()
-names(slopes) = c("Slope", "Slope_SE")
 
 # Next calculate intercepts
 
@@ -609,16 +660,12 @@ ITmat <- matrix(NA,4,8)
 ITmat[1,] <- c(1,0,0,0,0,rep(0,3)) # intercept for race = 0, object = 0 (black-gun)
 ITmat[2,] <- c(1,0,1,0,0,rep(0,3)) # intercept for race = 0, object = 1 (black-tool)
 ITmat[3,] <- c(1,1,0,0,0,rep(0,3)) # intercept for race = 1, object = 0 (white-gun)
-ITmat[4,] <- c(1,1,0,0,1,rep(0,3)) # intercept for race = 1, object = 1 (white-tool)
+ITmat[4,] <- c(1,1,1,0,1,rep(0,3)) # intercept for race = 1, object = 1 (white-tool)
 
 Iparest <- ITmat %*% parms          # see above for notation
-Inewvc <- ITmat %*% vcmat %*% t(ITmat)
-Ises <- sqrt(diag(Inewvc)) 
 
-intercepts = cbind(Iparest, Ises) %>% as.data.frame()
-names(intercepts) = c("Intercept", "Intercept_SE")
-
-forPlotting = cbind(slopes, intercepts)
+forPlotting = cbind(Sparest, Iparest) %>% as.data.frame()
+names(forPlotting) = c("Slope", "Intercept")
 
 # label for understanding
 forPlotting$Condition = c("Black_gun", 
@@ -626,20 +673,61 @@ forPlotting$Condition = c("Black_gun",
                           "White_gun",
                           "White_tool")
 
+# calculate SE for each trial, separately for each race
+SETmat <- matrix(NA,1024,8) # 1024 rows because 256 trials x 4 conditions
+# fill columns with appropriate weights.
+SETmat[,1] = 1 
+SETmat[,2] = rep(c(0, 0, 1, 1), each = 256) # 0 for first two conditions, 1 for second two conditions
+SETmat[,3] = rep(c(0, 1, 0, 1), each = 256) 
+SETmat[,4] = rep(1:256, 4) # 1:256 in each condition
+SETmat[,5] = rep(c(0, 0, 0, 1), each = 256) 
+SETmat[,6] = c(rep(c(0, 0), each = 256), rep(1:256, 2)) # 0 for first two conditions, 1:256 for second two conditions
+SETmat[,7] = c(rep(0, 256), 1:256, rep(0, 256), 1:256) # 0 for first and third condition, 1:256 for second and last condition
+SETmat[,8] = c(rep(c(0, 0, 0), each = 256), 1:256) # 0 for first three conditions, 1:256 for last condition
 
+newvc <- SETmat %*% vcmat %*% t(SETmat)
+ses <- sqrt(diag(newvc)) # long string of SEs for each trial, first 256 are for Black faces, second 256 are for White faces
+
+SE.dat = data.frame(Condition = rep(c("Black_gun", "Black_tool", "White_gun", "White_tool"), each = 256), 
+                    Trial = rep(c(1:256), 4), 
+                    SE = ses)
+
+# sloppy, and there's probably a better way of doing this
+# but take slope and intercept and calculate all the points on the line for each trial so that I can calculate upper and lower 95% CIs 
+SE.dat$Point = NULL
+for (c in c("Black_gun", "Black_tool", "White_gun", "White_tool")) {
+  SE.dat$Point[SE.dat$Condition == c] = 
+    forPlotting$Intercept[forPlotting$Condition == c] + 1:256*forPlotting$Slope[forPlotting$Condition == c]
+}
+
+# calculate upper and lower bound (+/- 1 SE)
+SE.dat$upper = SE.dat$Point + SE.dat$SE
+SE.dat$lower = SE.dat$Point - SE.dat$SE
+
+custom = c("dodgerblue", "blue", "red", "red4")
 # BINGO -------------------------------------------------------------------
-ggplot(trialOrderDat, aes(TrialOrder.c, MeanAmp, alpha = Condition, color = Condition, shape = Condition)) +
-  geom_point() +
-  geom_abline(data = forPlotting, aes(intercept=Intercept, slope=Slope, color = Condition), size=1)+
-  labs(x = "Error number, centered by subject", y = "ERN mean amplitude (uV)") +
+ggplot(SE.dat, aes(Trial, Point, alpha = Condition, color = Condition, shape = Condition)) +
+  geom_abline(data = forPlotting, aes(intercept=Intercept, slope=Slope, color = Condition), size=1.5)+
+  geom_ribbon(aes(ymin=lower, ymax=upper, x = Trial, fill = Condition),
+              linetype = "dotted",
+              alpha = .3,
+              color = rep(custom, each=256),
+              fill = rep(custom, each=256)) +
+  labs(x = "Error number", y = "ERN mean amplitude (uV)") +
   scale_shape_manual(values=c(1,19,1,19)) +
   scale_alpha_manual(values=c(.1,.1,.1,.1)) +
-  scale_color_manual(values=c("dodgerblue", "blue", "red", "darkred")) +
+  scale_color_manual(values=custom) +
   theme_bw() +
-  scale_y_continuous(limits =c(-7.5, 10), expand=c(0,0)) +
+  scale_y_continuous(limits =c(-5, 2.5), expand=c(0,0)) +
   scale_x_continuous(expand=c(0,0)) +
-  ggtitle("Errors are ordered and subject-centered") +
-  theme(plot.title = element_text(hjust = 0.5)) # center title
+  ggtitle("Errors are ordered and subject centered") +
+  theme(plot.title = element_text(hjust = 0.5),# center title
+        axis.title = element_text(size = 20),
+        axis.text.y = element_text(size = 16),
+        axis.text.x = element_text(size = 12),
+        #legend.title = element_text(size = 20),
+        #legend.text = element_text(size = 16),
+        strip.text = element_text(size = 16)) 
 
 ```
 
@@ -747,11 +835,6 @@ STmat[3,] <- c(rep(0,3),1,0,1,0,0) # slope for race = 1, object = 0 (white-gun)
 STmat[4,] <- c(rep(0,3),1,0,1,1,1) # slope for race = 1, object = 1 (white-tool)
 
 Sparest <- STmat %*% parms          # see above for notation
-Snewvc <- STmat %*% vcmat %*% t(STmat)
-Sses <- sqrt(diag(Snewvc)) 
-
-slopes = cbind(Sparest, Sses) %>% as.data.frame()
-names(slopes) = c("Slope", "Slope_SE")
 
 # Next calculate intercepts
 
@@ -760,16 +843,12 @@ ITmat <- matrix(NA,4,8)
 ITmat[1,] <- c(1,0,0,0,0,rep(0,3)) # intercept for race = 0, object = 0 (black-gun)
 ITmat[2,] <- c(1,0,1,0,0,rep(0,3)) # intercept for race = 0, object = 1 (black-tool)
 ITmat[3,] <- c(1,1,0,0,0,rep(0,3)) # intercept for race = 1, object = 0 (white-gun)
-ITmat[4,] <- c(1,1,0,0,1,rep(0,3)) # intercept for race = 1, object = 1 (white-tool)
+ITmat[4,] <- c(1,1,1,0,1,rep(0,3)) # intercept for race = 1, object = 1 (white-tool)
 
 Iparest <- ITmat %*% parms          # see above for notation
-Inewvc <- ITmat %*% vcmat %*% t(ITmat)
-Ises <- sqrt(diag(Inewvc)) 
 
-intercepts = cbind(Iparest, Ises) %>% as.data.frame()
-names(intercepts) = c("Intercept", "Intercept_SE")
-
-forPlotting = cbind(slopes, intercepts)
+forPlotting = cbind(Sparest, Iparest) %>% as.data.frame()
+names(forPlotting) = c("Slope", "Intercept")
 
 # label for understanding
 forPlotting$Condition = c("Black_gun", 
@@ -777,20 +856,61 @@ forPlotting$Condition = c("Black_gun",
                           "White_gun",
                           "White_tool")
 
+# calculate SE for each trial, separately for each race
+SETmat <- matrix(NA,1024,8) # 1024 rows because 256 trials x 4 conditions
+# fill columns with appropriate weights.
+SETmat[,1] = 1 
+SETmat[,2] = rep(c(0, 0, 1, 1), each = 256) # 0 for first two conditions, 1 for second two conditions
+SETmat[,3] = rep(c(0, 1, 0, 1), each = 256) 
+SETmat[,4] = rep(1:256, 4) # 1:256 in each condition
+SETmat[,5] = rep(c(0, 0, 0, 1), each = 256) 
+SETmat[,6] = c(rep(c(0, 0), each = 256), rep(1:256, 2)) # 0 for first two conditions, 1:256 for second two conditions
+SETmat[,7] = c(rep(0, 256), 1:256, rep(0, 256), 1:256) # 0 for first and third condition, 1:256 for second and last condition
+SETmat[,8] = c(rep(c(0, 0, 0), each = 256), 1:256) # 0 for first three conditions, 1:256 for last condition
 
+newvc <- SETmat %*% vcmat %*% t(SETmat)
+ses <- sqrt(diag(newvc)) # long string of SEs for each trial, first 256 are for Black faces, second 256 are for White faces
+
+SE.dat = data.frame(Condition = rep(c("Black_gun", "Black_tool", "White_gun", "White_tool"), each = 256), 
+                    Trial = rep(c(1:256), 4), 
+                    SE = ses)
+
+# sloppy, and there's probably a better way of doing this
+# but take slope and intercept and calculate all the points on the line for each trial so that I can calculate upper and lower 95% CIs 
+SE.dat$Point = NULL
+for (c in c("Black_gun", "Black_tool", "White_gun", "White_tool")) {
+  SE.dat$Point[SE.dat$Condition == c] = 
+    forPlotting$Intercept[forPlotting$Condition == c] + 1:256*forPlotting$Slope[forPlotting$Condition == c]
+}
+
+# calculate upper and lower bound (+/- 1 SE)
+SE.dat$upper = SE.dat$Point + SE.dat$SE
+SE.dat$lower = SE.dat$Point - SE.dat$SE
+
+custom = c("dodgerblue", "blue", "red", "red4")
 # BINGO -------------------------------------------------------------------
-ggplot(trialTypeDat, aes(TrialOrder.type, MeanAmp, alpha = Condition, color = Condition, shape = Condition)) +
-  geom_point() +
-  geom_abline(data = forPlotting, aes(intercept=Intercept, slope=Slope, color = Condition), size=1)+
-  labs(x = "Error number, by trial type", y = "ERN mean amplitude (uV)") +
+ggplot(SE.dat, aes(Trial, Point, alpha = Condition, color = Condition, shape = Condition)) +
+  geom_abline(data = forPlotting, aes(intercept=Intercept, slope=Slope, color = Condition), size=1.5)+
+  geom_ribbon(aes(ymin=lower, ymax=upper, x = Trial, fill = Condition),
+              linetype = "dotted",
+              alpha = .3,
+              color = rep(custom, each=256),
+              fill = rep(custom, each=256)) +
+  labs(x = "Error number", y = "ERN mean amplitude (uV)") +
   scale_shape_manual(values=c(1,19,1,19)) +
   scale_alpha_manual(values=c(.1,.1,.1,.1)) +
-  scale_color_manual(values=c("dodgerblue", "blue", "red", "darkred")) +
+  scale_color_manual(values=custom) +
   theme_bw() +
-  scale_y_continuous(limits =c(-7.5, 10), expand=c(0,0)) +
+  scale_y_continuous(limits =c(-5, 2.5), expand=c(0,0)) +
   scale_x_continuous(expand=c(0,0)) +
   ggtitle("Errors are ordered by trial type") +
-  theme(plot.title = element_text(hjust = 0.5)) # center title
+  theme(plot.title = element_text(hjust = 0.5),# center title
+        axis.title = element_text(size = 20),
+        axis.text.y = element_text(size = 16),
+        axis.text.x = element_text(size = 12),
+        #legend.title = element_text(size = 20),
+        #legend.text = element_text(size = 16),
+        strip.text = element_text(size = 16)) 
 
 ```
 

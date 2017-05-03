@@ -15,8 +15,6 @@ require(dplyr)
 require(ggplot2)
 require(lme4)
 require(lmerTest)
-require(colorspace)
-require(grid)
 require(tidyr)
 ```
 
@@ -107,23 +105,30 @@ ggplot(data=forfacetting, aes(Time, MeanAmp, group = Race)) +
         legend.text = element_text(size = 16),
         strip.text = element_text(size = 16)) 
 
-ggsave("./N170 data/FacettedGrandAverages_N170.tiff")
+ggsave("./FacettedGrandAverages_N170.tiff")
 
 ```
   
-To test the mean amplitude of the N170, a model was fitted with Race as a predictor. The intercept and slope of Race were allowed to vary by subject. The intercept was allowed to vary by Electrode nested within Subject. 
+####Signal averaging approach:
+
+All trials were added together and the mean amplitude was calculated for each condition for each subject. A model was fitted with Race predicting mean amplitude calculated in this way. The intercept and slope of Race were allowed to vary by subject. The intercept was allowed to vary by Electrode nested within Subject. 
 
 Race was effect coded. 
 
 ``` {r test, echo=F}
 dat = read.delim("./Cat_AllSubs_TBTaverages_noBS_groupN170.txt")
 
-# add effect codes for categorical variables
-dat$Race.e = NA
-dat$Race.e[dat$Race == "Black"] = -1
-dat$Race.e[dat$Race == "White"] = 1
+sigavg = select(dat, -Trial, -Condition, -Fix) %>% 
+  group_by(Subject, Race, Electrode) %>% 
+  summarise_each(funs(mean(., na.rm = T))) %>% 
+  as.data.frame()
 
-grand1 = lmer(MeanAmp ~ Race.e + (Race.e|Subject) + (1|Electrode:Subject), dat = dat)
+# add effect codes for categorical variables
+sigavg$Race.e = NA
+sigavg$Race.e[sigavg$Race == "Black"] = -1
+sigavg$Race.e[sigavg$Race == "White"] = 1
+
+grand1 = lmer(MeanAmp ~ Race.e + (Race.e|Subject) + (1|Electrode:Subject), dat = sigavg)
 ```
   
 **Random effects:**  
@@ -160,11 +165,6 @@ STmat[1,] <- c(0,0,1,0) # slope for race = 0 (black)
 STmat[2,] <- c(0,0,1,1) # slope for race = 1 (white)
 
 Sparest <- STmat %*% parms          # see above for notation
-Snewvc <- STmat %*% vcmat %*% t(STmat)
-Sses <- sqrt(diag(Snewvc)) 
-
-slopes = cbind(Sparest, Sses) %>% as.data.frame()
-names(slopes) = c("Slope", "Slope_SE")
 
 # Next calculate intercepts
 
@@ -174,37 +174,60 @@ ITmat[1,] <- c(1,0,0,0) # intercept for race = 0 (black)
 ITmat[2,] <- c(1,1,0,0) # intercept for race = 1 (white)
 
 Iparest <- ITmat %*% parms          # see above for notation
-Inewvc <- ITmat %*% vcmat %*% t(ITmat)
-Ises <- sqrt(diag(Inewvc)) 
 
-intercepts = cbind(Iparest, Ises) %>% as.data.frame()
-names(intercepts) = c("Intercept", "Intercept_SE")
-
-forPlotting = cbind(slopes, intercepts)
+forPlotting = cbind(Sparest, Iparest) %>% as.data.frame()
+names(forPlotting) = c("Slope", "Intercept")
 
 # label for understanding
 forPlotting$Race = c("Black", "White")
 
+# calculate SE for each trial, separately for each race
+SETmat <- matrix(NA,512,4)
+SETmat[,1] = 1 # first column is intercept
+SETmat[1:256, 2] = 0 # second column is race. For first half of rows, race = 0 (Black) 
+SETmat[1:256, 3] = 1:256 # third column is trial. Different row for each trial
+SETmat[1:256, 4] = 0 # fourth column is interaction. 0 when race = 0, trial number when race = 1
+SETmat[257:512, 2] = 1 # second column is race. For second half of rows, race = 1 (White) 
+SETmat[257:512, 3] = 1:256 # third column is trial. Different row for each trial
+SETmat[257:512, 4] = 1:256 # fourth column is interaction. 0 when race = 0, trial number when race = 1
+
+newvc <- SETmat %*% vcmat %*% t(SETmat)
+ses <- sqrt(diag(newvc)) # long string of SEs for each trial, first 256 are for Black faces, second 256 are for White faces
+
+SE.dat = data.frame(Race = rep(c("Black", "White"), each=256), Trial = rep(c(1:256), 2), SE = ses)
+
+# sloppy, and there's probably a better way of doing this
+# but take slope and intercept and calculate all the points on the line for each trial so that I can calculate upper and lower 95% CIs 
+SE.dat$Point = NULL
+SE.dat$Point[SE.dat$Race == "Black"] = forPlotting$Intercept[forPlotting$Race == "Black"] + 1:256*forPlotting$Slope[forPlotting$Race == "Black"]
+SE.dat$Point[SE.dat$Race == "White"] = forPlotting$Intercept[forPlotting$Race == "White"] + 1:256*forPlotting$Slope[forPlotting$Race == "White"]
+
+# calculate upper and lower bound (+/- 1 SE)
+SE.dat$upper = SE.dat$Point + SE.dat$SE
+SE.dat$lower = SE.dat$Point - SE.dat$SE
 
 # BINGO -------------------------------------------------------------------
-ggplot(dat, aes(Trial, MeanAmp, alpha = Race, color = Race, shape = Race)) +
-  geom_point() +
+ggplot(SE.dat, aes(Trial, Point, alpha = Race, color = Race, shape = Race)) +
   geom_abline(data = forPlotting, aes(intercept=Intercept, slope=Slope, color = Race), size=1)+
+  geom_ribbon(aes(ymin=lower, ymax=upper, x = Trial),
+              linetype = "dashed",
+              alpha = .1,
+              color = "black") +
   labs(x = "Trial", y = "N170 Mean Amplitude") +
-#  scale_shape_manual(values=c(1,19,1,19)) +
+  #  scale_shape_manual(values=c(1,19,1,19)) +
   scale_alpha_manual(values=c(.1,.1,.1,.1)) +
   scale_color_manual(values=c("blue", "dodgerblue")) +
   theme_bw() +
-  scale_y_continuous(limits =c(-5, 3), expand=c(0,0)) +
+  scale_y_continuous(limits =c(-3, .5), expand=c(0,0)) +
   scale_x_continuous(expand=c(0,0)) +
-#  ggtitle("Trial is original trial number") +
+  #  ggtitle("Trial is original trial number") +
   theme(plot.title = element_text(hjust = 0.5),# center title
         axis.title = element_text(size = 20),
         axis.text = element_text(size = 16),
         legend.title = element_text(size = 20),
         legend.text = element_text(size = 16)) 
 
-ggsave("./N170 data/SimpleSlopes_N170.tiff")
+ggsave("./SimpleSlopes_N170.tiff")
 ```
 
 ##### Simple slopes
@@ -259,6 +282,10 @@ Trial is scaled to range from 0 to 10.
 
 ``` {r begin, echo = FALSE}
 # same model, but with effect coding
+dat$Race.e = NA
+dat$Race.e[dat$Race == "Black"] = -1
+dat$Race.e[dat$Race == "White"] = 1
+
 begin.e = lmer(MeanAmp ~ Race.e*Trial.begin + (Race.e|Subject) + (1|Electrode:Subject), dat = dat)
 ```
   
