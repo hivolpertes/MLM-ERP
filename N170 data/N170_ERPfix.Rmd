@@ -39,19 +39,14 @@ N170box =  annotate("rect",    #N170
                     color="black", 
                     linetype="dashed")
 
-ERPline = geom_line(lwd=1.1,
-                    linetype="solid",
-                    aes(color = Race))
+ERPline = geom_line(lwd=1.1, alpha=.85,
+                    aes(color = Race, linetype = Race))
 
-condColors <- c("Black" = "blue", 
-                "White" = "dodgerblue")
+condLineType <- c("Black" = "solid",
+                  "White" = "solid")
 
-none = element_blank() 
-
-ERPline = geom_line(lwd=1.1,
-                    aes(color = Race))
-
-
+condColors <- c("Black" = "black", 
+                "White" = "darkgreen")
 
 none = element_blank() 
 
@@ -70,6 +65,7 @@ ggplot(data=avg, aes(Time, avgElec, group = Race)) +
 #  scale_y_continuous(limits =c(10, -7.5)) +  # scale_y_reverse flips y axis
   ylab("Amplitude (uV)") +
   scale_color_manual(values=condColors) +
+  scale_linetype_manual(values=condLineType) +
   ggtitle("Average of TP7, TP8, P7, P8") +
   theme(plot.title = element_text(hjust = 0.5)) # center title
 
@@ -96,6 +92,7 @@ ggplot(data=forfacetting, aes(Time, MeanAmp, group = Race)) +
 #  scale_y_continuous(limits =c(10, -7.5)) +  # scale_y_reverse flips y axis
   ylab("Amplitude (uV)") +
   scale_color_manual(values=condColors) +
+  scale_linetype_manual(values=condLineType) +
 #  ggtitle("Average of TP7, TP8, P7, P8") +
   theme(plot.title = element_text(hjust = 0.5),# center title
         axis.title = element_text(size = 20),
@@ -216,7 +213,7 @@ ggplot(SE.dat, aes(Trial, Point, alpha = Race, color = Race, shape = Race)) +
   labs(x = "Trial", y = "N170 Mean Amplitude") +
   #  scale_shape_manual(values=c(1,19,1,19)) +
   scale_alpha_manual(values=c(.1,.1,.1,.1)) +
-  scale_color_manual(values=c("blue", "dodgerblue")) +
+  scale_color_manual(values=c("black", "darkgreen")) +
   theme_bw() +
   scale_y_continuous(limits =c(-3, .5), expand=c(0,0)) +
   scale_x_continuous(expand=c(0,0)) +

@@ -492,22 +492,22 @@ forPlotting$Condition = c("Black_gun",
                           "White_tool")
 
 # calculate SE for each trial, separately for each race
-SETmat <- matrix(NA,1024,8) # 1024 rows because 256 trials x 4 conditions
+SETmat <- matrix(NA,564,8) # 564 rows because 141 errors (max) x 4 conditions
 # fill columns with appropriate weights.
 SETmat[,1] = 1 
-SETmat[,2] = rep(c(0, 0, 1, 1), each = 256) # 0 for first two conditions, 1 for second two conditions
-SETmat[,3] = rep(c(0, 1, 0, 1), each = 256) 
-SETmat[,4] = rep(1:256, 4) # 1:256 in each condition
-SETmat[,5] = rep(c(0, 0, 0, 1), each = 256) 
-SETmat[,6] = c(rep(c(0, 0), each = 256), rep(1:256, 2)) # 0 for first two conditions, 1:256 for second two conditions
-SETmat[,7] = c(rep(0, 256), 1:256, rep(0, 256), 1:256) # 0 for first and third condition, 1:256 for second and last condition
-SETmat[,8] = c(rep(c(0, 0, 0), each = 256), 1:256) # 0 for first three conditions, 1:256 for last condition
+SETmat[,2] = rep(c(0, 0, 1, 1), each = 141) # 0 for first two conditions, 1 for second two conditions
+SETmat[,3] = rep(c(0, 1, 0, 1), each = 141) 
+SETmat[,4] = rep(1:141, 4) # 1:256 in each condition
+SETmat[,5] = rep(c(0, 0, 0, 1), each = 141) 
+SETmat[,6] = c(rep(c(0, 0), each = 141), rep(1:141, 2)) # 0 for first two conditions, 1:256 for second two conditions
+SETmat[,7] = c(rep(0, 141), 1:141, rep(0, 141), 1:141) # 0 for first and third condition, 1:256 for second and last condition
+SETmat[,8] = c(rep(c(0, 0, 0), each = 141), 1:141) # 0 for first three conditions, 1:256 for last condition
 
 newvc <- SETmat %*% vcmat %*% t(SETmat)
 ses <- sqrt(diag(newvc)) # long string of SEs for each trial, first 256 are for Black faces, second 256 are for White faces
 
-SE.dat = data.frame(Condition = rep(c("Black_gun", "Black_tool", "White_gun", "White_tool"), each = 256), 
-                    Trial = rep(c(1:256), 4), 
+SE.dat = data.frame(Condition = rep(c("Black_gun", "Black_tool", "White_gun", "White_tool"), each = 141), 
+                    Trial = rep(c(1:141), 4), 
                     SE = ses)
 
 # sloppy, and there's probably a better way of doing this
@@ -515,7 +515,7 @@ SE.dat = data.frame(Condition = rep(c("Black_gun", "Black_tool", "White_gun", "W
 SE.dat$Point = NULL
 for (c in c("Black_gun", "Black_tool", "White_gun", "White_tool")) {
   SE.dat$Point[SE.dat$Condition == c] = 
-    forPlotting$Intercept[forPlotting$Condition == c] + 1:256*forPlotting$Slope[forPlotting$Condition == c]
+    forPlotting$Intercept[forPlotting$Condition == c] + 1:141*forPlotting$Slope[forPlotting$Condition == c]
 }
 
 # calculate upper and lower bound (+/- 1 SE)
@@ -525,20 +525,21 @@ SE.dat$lower = SE.dat$Point - SE.dat$SE
 custom = c("dodgerblue", "blue", "red", "red4")
 # BINGO -------------------------------------------------------------------
 ggplot(SE.dat, aes(Trial, Point, alpha = Condition, color = Condition, shape = Condition)) +
+  geom_point()+
   geom_abline(data = forPlotting, aes(intercept=Intercept, slope=Slope, color = Condition), size=1.5)+
   geom_ribbon(aes(ymin=lower, ymax=upper, x = Trial, fill = Condition),
               linetype = "dotted",
-              alpha = .3,
-              color = rep(custom, each=256),
-              fill = rep(custom, each=256)) +
+              alpha = .25,
+              color = rep(custom, each=141),
+              fill = rep(custom, each=141)) +
   labs(x = "Error number", y = "ERN mean amplitude (uV)") +
   scale_shape_manual(values=c(1,19,1,19)) +
   scale_alpha_manual(values=c(.1,.1,.1,.1)) +
   scale_color_manual(values=custom) +
   theme_bw() +
   scale_y_continuous(limits =c(-5, 2.5), expand=c(0,0)) +
-  scale_x_continuous(expand=c(0,0)) +
-  ggtitle("Errors are ordered") +
+  scale_x_continuous(expand=c(0,0), breaks=c(25, 50, 75, 100, 125, 150)) +
+  ggtitle("Error Number") +
   theme(plot.title = element_text(hjust = 0.5),# center title
         axis.title = element_text(size = 20),
         axis.text.y = element_text(size = 16),
@@ -547,6 +548,7 @@ ggplot(SE.dat, aes(Trial, Point, alpha = Condition, color = Condition, shape = C
         #legend.text = element_text(size = 16),
         strip.text = element_text(size = 16)) 
 
+ggsave("./SimpleSlopes_ErrorNumber.tiff")
 ```
 
 ##### Simple slopes
