@@ -108,11 +108,9 @@ ggsave("./FacettedGrandAverages_N170.tiff")
   
 ####Signal averaging approach:
 
-All trials were added together and the mean amplitude was calculated for each condition for each subject. A model was fitted with Race predicting mean amplitude calculated in this way. The intercept and slope of Race were allowed to vary by subject. The intercept was allowed to vary by Electrode nested within Subject. 
+All trials were averaged together and the mean amplitude was calculated for each condition for each subject. Subject and electrode were used as random factors, with electrodes nested within subjects. ICCs were first calculated with an intercept-only model. 
 
-Race was effect coded. 
-
-``` {r test, echo=F}
+``` {r}
 dat = read.delim("./Cat_AllSubs_TBTaverages_noBS_groupN170.txt")
 
 sigavg = select(dat, -Trial, -Condition, -Fix) %>% 
@@ -120,6 +118,20 @@ sigavg = select(dat, -Trial, -Condition, -Fix) %>%
   summarise_each(funs(mean(., na.rm = T))) %>% 
   as.data.frame()
 
+sum = lmer(MeanAmp ~ (1|Subject) + (1|Electrode:Subject), dat = sigavg) %>% summary()
+
+subICC = 4.539/(4.539+1.464+2.235)
+elecICC = 2.235/(4.539+1.464+2.235)
+```
+
+The ICC associated with *subject* is `r subICC`.  
+The ICC associated with *electrode nested within subject* is `r elecICC`.
+
+A model was fitted with Race predicting mean amplitude calculated in this way. The intercept and slope of Race were allowed to vary by subject. The intercept was allowed to vary by Electrode nested within Subject. 
+
+Race was effect coded. 
+
+``` {r test, echo=F}
 # add effect codes for categorical variables
 sigavg$Race.e = NA
 sigavg$Race.e[sigavg$Race == "Black"] = -1
@@ -139,6 +151,18 @@ round(summary(grand1)$coefficients, digits = 3)
 ```
 
 ### 2. Looking at the N170 over the course of the experiment
+
+ICCs were first calculated for subject and electrode.
+``` {r}
+lmer(MeanAmp ~ (1|Subject) + (1|Electrode:Subject), dat = dat) %>% summary()
+
+subICC = 4.557/(4.557+2.392+100.462)
+elecICC = 2.392/(4.557+2.392+100.462)
+```
+
+The ICC associated with *subject* is `r subICC`.  
+The ICC associated with *electrode nested within subject* is `r elecICC`.  
+
 
 **Slopes and estimates of lines are from the MLM, not fitted with OLS.  Negative is plotted downward.** 
 
