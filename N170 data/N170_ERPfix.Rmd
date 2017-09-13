@@ -9,7 +9,7 @@ output:
 ---
 
 ```{r setup, include=FALSE, warnings=F}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
 options(width=140)
 require(dplyr)
 require(ggplot2)
@@ -338,3 +338,16 @@ summary(end.e)$varcor
 round(summary(end.e)$coefficients, digits = 3)
 ```
 
+``` {r}
+# testing significances of random intercepts/slopes
+m3 = lmer(MeanAmp ~ Race.d*Trial.begin + (1|Electrode), dat = dat)
+m2 = lmer(MeanAmp ~ Race.d*Trial.begin + (1|Subject), dat = dat)
+m1 = lmer(MeanAmp ~ Race.d*Trial.begin + (Race.d|Subject), dat = dat)
+m0 = lmer(MeanAmp ~ Race.d*Trial.begin, dat = dat)
+
+# test intercept of subject
+
+# test slope of race within subject
+
+# test intercept of electrode within 
+```

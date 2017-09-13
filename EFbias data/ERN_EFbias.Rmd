@@ -440,10 +440,9 @@ round(summary(tot)$coefficients[c(4,6:8),1:5], digits = 3)
 
 ### 4. Looking at the ERN over the course of the experiment: Ordered errors
 ##### - Each error is ordered for each subject (i.e., error #1 for subject 10 and error #1 for subject 20 now have the same x-value, even if it happened on trial 12 for subject 10 and trial 50 for subject 20). Trial-type is ignored when ordering errors.
-  
-**Slopes and estimates of lines are from the MLM, not fitted with OLS.  Negative is plotted downward.** 
-  
-``` {r subord, echo=F, warning=F}
+
+ICCs were first calculated for subject and electrode.
+``` {r}
 trialOrderDat = NULL
 for (i in unique(dat$Subject)) {
   # take error trials, renumber them by order
@@ -453,6 +452,20 @@ for (i in unique(dat$Subject)) {
   
   trialOrderDat = rbind(trialOrderDat, err)
 }
+
+sum = lmer(MeanAmp ~ (1|Subject) + (1|Electrode), dat = trialOrderDat) %>% summary()
+
+subICC = 8.289/(8.289+2.025+61.041)
+elecICC = 2.025/(8.289+2.025+61.041)
+```
+
+The ICC associated with *subject* is `r subICC`.  
+The ICC associated with *electrode* is `r elecICC`.  
+
+**Slopes and estimates of lines are from the MLM, not fitted with OLS.  Negative is plotted downward.** 
+  
+``` {r subord, echo=F, warning=F}
+
 
 # fit model to plot simple slopes
 plot3.d = lmer(MeanAmp ~ Race*Object*TrialOrder + (Race*Object|Subject) + (1|Electrode), dat = trialOrderDat)
@@ -990,3 +1003,29 @@ round(summary(subcentered)$coefficients[c(1:3,5),1:5], digits = 4)
 round(summary(subcentered)$coefficients[c(4,6:8),1:5], digits = 3)
 ```
 
+``` {r}
+# testing significances of random intercepts/slopes
+m6 = lmer(MeanAmp ~ Race*Object*TrialOrder + (1|Electrode), dat = trialOrderDat)
+m5 = lmer(MeanAmp ~ Race*Object*TrialOrder + (Race*Object|Subject), dat = trialOrderDat)
+m4 = lmer(MeanAmp ~ Race*Object*TrialOrder + (Race+Object|Subject), dat = trialOrderDat)
+m3 = lmer(MeanAmp ~ Race*Object*TrialOrder + (Race|Subject), dat = trialOrderDat)
+m2 = lmer(MeanAmp ~ Race*Object*TrialOrder + (Object|Subject), dat = trialOrderDat)
+m1 = lmer(MeanAmp ~ Race*Object*TrialOrder + (1|Subject), dat = trialOrderDat)
+m0 = lm(MeanAmp ~ Race*Object*TrialOrder, dat = trialOrderDat)
+
+
+# test intercept of subject
+anova(m1, m0)
+
+# test slope of race by subject
+anova(m3, m1)
+
+# test slope of object by subject
+anova(m2, m1)
+
+# test slope of object*race interaction by subject
+anova(m5, m4)
+
+# test intercept of electrode
+anova(m6, m0)
+```

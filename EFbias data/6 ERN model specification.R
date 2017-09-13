@@ -28,7 +28,7 @@ anova(g1, g3)
 # Not including trial -----------------------------------------------------
 
 # Model specification: start with maximal model
-m1 = lmer(MeanAmp ~ 1 + (Race.e*Object.e|Subject) + (1|Electrode), dat = errDat)
+m1 = lmer(MeanAmp ~ 1 + (Race.e*Object.e|Subject) + (Race.e*Object.e|Electrode), dat = errDat)
 summary(m1)
 
 # Final model:

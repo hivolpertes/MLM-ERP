@@ -1,0 +1,382 @@
+---
+title: N170 from ERP-fix
+author: Hannah, 9/12/2017
+output:
+  html_document:
+    highlight: pygments
+    theme: cerulean
+  pdf_document: default
+---
+
+```{r setup, include=FALSE, warnings=F}
+knitr::opts_chunk$set(echo = FALSE)
+options(width=140)
+require(dplyr)
+require(ggplot2)
+require(lme4)
+require(lmerTest)
+require(tidyr)
+```
+
+**Total sample is 65 subjects**
+*Changed to cross-classified models (not electrode nested within subject)*
+
+### 1. N170 grand averages  
+**Negative is plotted downwards.**
+
+```{r plotGrand, echo=FALSE}
+grand = read.delim("For_plotting_Cat_N170_noBS.txt")
+grand$avgElec = (grand$TP7 + grand$TP8 + grand$P7 + grand$P8)/4
+
+avg = select(grand, Time, Race, avgElec) %>% 
+  group_by(Time, Race) %>% 
+  summarise_each(funs(mean(., na.rm=TRUE))) %>% 
+  as.data.frame()
+
+N170box =  annotate("rect",    #N170
+                    xmin=135, xmax=195, ymin=-Inf, ymax=Inf,
+                    alpha=0,
+                    fill="#F0E0FF",
+                    color="black", 
+                    linetype="dashed")
+
+ERPline = geom_line(lwd=1.1, alpha=.85,
+                    aes(color = Race, linetype = Race))
+
+condLineType <- c("Black" = "solid",
+                  "White" = "solid")
+
+condColors <- c("Black" = "black", 
+                "White" = "darkgreen")
+
+none = element_blank() 
+
+# average of all 9 electrodes
+ggplot(data=avg, aes(Time, avgElec, group = Race)) + 
+  ERPline + 
+  N170box + 
+  theme_bw() + 
+  theme(panel.grid.major.x = none, panel.grid.minor.x = none) +
+  scale_x_continuous("Time (ms)", 
+                     limits=c(-100, 1000), 
+                     expand=c(0,0),   # expand=c(0,0) removes extra space before & after data
+                     breaks=c(-100, 0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000)) +
+  geom_hline(yintercept=0) + # adds x axis
+  geom_vline(xintercept=0) +
+#  scale_y_continuous(limits =c(10, -7.5)) +  # scale_y_reverse flips y axis
+  ylab("Amplitude (uV)") +
+  scale_color_manual(values=condColors) +
+  scale_linetype_manual(values=condLineType) +
+  ggtitle("Average of TP7, TP8, P7, P8") +
+  theme(plot.title = element_text(hjust = 0.5)) # center title
+
+# make different data frame to facet electrodes and plot them separately
+forfacetting = select(grand, Time, Race, TP7, TP8, P7, P8) %>% 
+  group_by(Time, Race) %>% 
+  summarise_each(funs(mean(., na.rm=TRUE))) %>% 
+  as.data.frame() %>% 
+  gather("Electrode", "MeanAmp", 3:6)
+
+# each electrode separately
+ggplot(data=forfacetting, aes(Time, MeanAmp, group = Race)) + 
+  ERPline + 
+  N170box + 
+  theme_bw() + 
+  facet_wrap(~Electrode) +
+  theme(panel.grid.major.x = none, panel.grid.minor.x = none) +
+  scale_x_continuous("Time (ms)", 
+                     limits=c(-100, 600), 
+                     expand=c(0,0),   # expand=c(0,0) removes extra space before & after data
+                     breaks=c(-100, 0, 100, 200, 300, 400, 500, 600)) +
+  geom_hline(yintercept=0) + # adds x axis
+  geom_vline(xintercept=0) +
+#  scale_y_continuous(limits =c(10, -7.5)) +  # scale_y_reverse flips y axis
+  ylab("Amplitude (uV)") +
+  scale_color_manual(values=condColors) +
+  scale_linetype_manual(values=condLineType) +
+#  ggtitle("Average of TP7, TP8, P7, P8") +
+  theme(plot.title = element_text(hjust = 0.5),# center title
+        axis.title = element_text(size = 20),
+        axis.text.y = element_text(size = 16),
+        axis.text.x = element_text(size = 12),
+        legend.title = element_text(size = 20),
+        legend.text = element_text(size = 16),
+        strip.text = element_text(size = 16)) 
+
+ggsave("./FacettedGrandAverages_N170.tiff")
+
+```
+  
+####Signal averaging approach:
+
+All trials were averaged together and the mean amplitude was calculated for each condition for each subject. Subject and electrode were used as crossed random factors. ICCs were first calculated with an intercept-only model. 
+
+``` {r}
+dat = read.delim("./Cat_AllSubs_TBTaverages_noBS_groupN170.txt")
+
+sigavg = select(dat, -Trial, -Condition, -Fix) %>% 
+  group_by(Subject, Race, Electrode) %>% 
+  summarise_each(funs(mean(., na.rm = T))) %>% 
+  as.data.frame()
+
+sum = lmer(MeanAmp ~ (1|Subject) + (1|Electrode), dat = sigavg) %>% summary()
+
+subICC = 4.8994/(4.8994+.3832+3.0517)
+elecICC = .3832/(4.8994+.3832+3.0517)
+```
+
+The ICC associated with *subject* is `r subICC`.  
+The ICC associated with *electrode* is `r elecICC`.
+
+A model was fitted with Race predicting mean amplitude calculated in this way. The intercept and slope of Race were allowed to vary by subject. The intercept was allowed to vary by Electrode. 
+
+Race was effect coded. 
+
+``` {r test, echo=F}
+# add effect codes for categorical variables
+sigavg$Race.e = NA
+sigavg$Race.e[sigavg$Race == "Black"] = -1
+sigavg$Race.e[sigavg$Race == "White"] = 1
+
+grand1 = lmer(MeanAmp ~ Race.e + (Race.e|Subject) + (1|Electrode), dat = sigavg)
+```
+  
+**Random effects:**  
+``` {r grand1random, echo = FALSE}
+summary(grand1)$varcor
+```
+
+**Fixed effects:**
+``` {r grand1fixed, echo = FALSE} 
+round(summary(grand1)$coefficients, digits = 3)
+```
+
+### 2. Looking at the N170 over the course of the experiment
+
+ICCs were first calculated for subject and electrode.
+``` {r}
+sum = lmer(MeanAmp ~ (1|Subject) + (1|Electrode), dat = dat) %>% summary()
+
+subICC = 5.1535/(5.1535+.4853+101.8823)
+elecICC = .4853/(5.1535+.4853+101.8823)
+```
+
+The ICC associated with *subject* is `r subICC`.  
+The ICC associated with *electrode* is `r elecICC`.  
+
+
+**Slopes and estimates of lines are from the MLM, not fitted with OLS.  Negative is plotted downward.** 
+
+``` {r trialLevel, echo = FALSE, warning = FALSE}
+# making dummy codes is redundant but comforting, so LET ME LIVE
+dat$Race.d = NA
+dat$Race.d[dat$Race == "Black"] = 0
+dat$Race.d[dat$Race == "White"] = 1
+
+# find slopes and intercepts with dummy coded model, trial (unscaled) is included
+plot1.d = lmer(MeanAmp ~ Race.d*Trial + (Race.d|Subject) + (1|Electrode), dat = dat)
+
+parms <- fixef(plot1.d) # fixed parameters from model
+vcmat <- vcov(plot1.d) # variance/covariance matrix of fixed effects
+
+# First calculate slopes
+
+## each row of this matrix defines entries of parms that we want to combine:
+STmat <- matrix(NA,2,4)
+STmat[1,] <- c(0,0,1,0) # slope for race = 0 (black)
+STmat[2,] <- c(0,0,1,1) # slope for race = 1 (white)
+
+Sparest <- STmat %*% parms          # see above for notation
+
+# Next calculate intercepts
+
+## each row of this matrix defines entries of parms that we want to combine:
+ITmat <- matrix(NA,2,4)
+ITmat[1,] <- c(1,0,0,0) # intercept for race = 0 (black)
+ITmat[2,] <- c(1,1,0,0) # intercept for race = 1 (white)
+
+Iparest <- ITmat %*% parms          # see above for notation
+
+forPlotting = cbind(Sparest, Iparest) %>% as.data.frame()
+names(forPlotting) = c("Slope", "Intercept")
+
+# label for understanding
+forPlotting$Race = c("Black", "White")
+
+# calculate SE for each trial, separately for each race
+SETmat <- matrix(NA,512,4)
+SETmat[,1] = 1 # first column is intercept
+SETmat[1:256, 2] = 0 # second column is race. For first half of rows, race = 0 (Black) 
+SETmat[1:256, 3] = 1:256 # third column is trial. Different row for each trial
+SETmat[1:256, 4] = 0 # fourth column is interaction. 0 when race = 0, trial number when race = 1
+SETmat[257:512, 2] = 1 # second column is race. For second half of rows, race = 1 (White) 
+SETmat[257:512, 3] = 1:256 # third column is trial. Different row for each trial
+SETmat[257:512, 4] = 1:256 # fourth column is interaction. 0 when race = 0, trial number when race = 1
+
+newvc <- SETmat %*% vcmat %*% t(SETmat)
+ses <- sqrt(diag(newvc)) # long string of SEs for each trial, first 256 are for Black faces, second 256 are for White faces
+
+SE.dat = data.frame(Race = rep(c("Black", "White"), each=256), Trial = rep(c(1:256), 2), SE = ses)
+
+# sloppy, and there's probably a better way of doing this
+# but take slope and intercept and calculate all the points on the line for each trial so that I can calculate upper and lower 95% CIs 
+SE.dat$Point = NULL
+SE.dat$Point[SE.dat$Race == "Black"] = forPlotting$Intercept[forPlotting$Race == "Black"] + 1:256*forPlotting$Slope[forPlotting$Race == "Black"]
+SE.dat$Point[SE.dat$Race == "White"] = forPlotting$Intercept[forPlotting$Race == "White"] + 1:256*forPlotting$Slope[forPlotting$Race == "White"]
+
+# calculate upper and lower bound (+/- 1 SE)
+SE.dat$upper = SE.dat$Point + SE.dat$SE
+SE.dat$lower = SE.dat$Point - SE.dat$SE
+
+# BINGO -------------------------------------------------------------------
+ggplot(SE.dat, aes(Trial, Point, alpha = Race, color = Race, shape = Race)) +
+  geom_abline(data = forPlotting, aes(intercept=Intercept, slope=Slope, color = Race), size=1)+
+  geom_ribbon(aes(ymin=lower, ymax=upper, x = Trial),
+              linetype = "dashed",
+              alpha = .1,
+              color = "black") +
+  labs(x = "Trial", y = "N170 Mean Amplitude") +
+  #  scale_shape_manual(values=c(1,19,1,19)) +
+  scale_alpha_manual(values=c(.1,.1,.1,.1)) +
+  scale_color_manual(values=c("black", "darkgreen")) +
+  theme_bw() +
+  scale_y_continuous(limits =c(-3, .5), expand=c(0,0)) +
+  scale_x_continuous(expand=c(0,0)) +
+  #  ggtitle("Trial is original trial number") +
+  theme(plot.title = element_text(hjust = 0.5),# center title
+        axis.title = element_text(size = 20),
+        axis.text = element_text(size = 16),
+        legend.title = element_text(size = 20),
+        legend.text = element_text(size = 16)) 
+
+ggsave("./SimpleSlopes_N170.tiff")
+```
+
+##### Simple slopes
+
+Trial is scaled to range from 0 to 10 (instead of 1 to 256) so that the betas associated with trial are a little bigger (but significance testing is unaffected by linear scaling, so the test statistics and p values will be the same as if we used the unscaled Trial variable).
+
+``` {r simple, echo = FALSE}
+# rescale trial
+dat$Trial.begin = (dat$Trial-1)/25.5
+# shift trial to look at fixed effects at end of task as well
+dat$Trial.end = dat$Trial.begin - 10
+
+# find slopes with dummy coded model, trial is scaled
+begin.d <- lmer(MeanAmp ~ Race.d*Trial.begin + (Race.d|Subject) + (1|Electrode), dat = dat)
+
+parms <- fixef(begin.d) # fixed parameters from model
+vcmat <- vcov(begin.d) # variance/covariance matrix of fixed effects
+
+## each row of this matrix defines entries of parms that we want to combine:
+Tmat <- matrix(NA,2,4)
+Tmat[1,] <- c(0,0,1,0) # slope for race = 0 (black)
+Tmat[2,] <- c(0,0,1,1) # slope for race = 1 (white)
+
+parest <- Tmat %*% parms          # see above for notation
+newvc <- Tmat %*% vcmat %*% t(Tmat)
+ses <- sqrt(diag(newvc)) 
+
+## final results
+fin = cbind(parest, ses) %>% as.data.frame()
+names(fin) = c("est", "ses")
+
+# to calculate 95% CI intervals, lower bound = m - 2*SE, upper bound = m + 2*SE
+
+fin$lbnd = fin$est - 2*fin$ses
+fin$ubnd = fin$est + 2*fin$ses
+
+fin = format(fin, digits = 3)
+
+# relabel for understanding
+fin$Race = c("Black", "White")
+
+fin = rename(fin, Estimate = est, SE = ses, ci95_lower = lbnd, ci95_upper = ubnd)
+
+# display
+fin
+```  
+
+#### Model output: Beginning of experiment
+The intercept, slopes of current and previous trial condition and their interaction are allowed to vary by subject. *Categorical variables are effect coded.*   
+  
+Trial is scaled to range from 0 to 10.  
+
+``` {r begin, echo = FALSE}
+# same model, but with effect coding
+dat$Race.e = NA
+dat$Race.e[dat$Race == "Black"] = -1
+dat$Race.e[dat$Race == "White"] = 1
+
+begin.e = lmer(MeanAmp ~ Race.e*Trial.begin + (Race.e|Subject) + (1|Electrode), dat = dat)
+```
+  
+**Random effects:**  
+``` {r beginrandom, echo = FALSE}
+summary(begin.e)$varcor
+```
+
+**Fixed effects:**
+``` {r beginfixed, echo = FALSE} 
+round(summary(begin.e)$coefficients, digits = 3)
+```
+
+#### Model output: End of experiment
+Trial is scaled to range from 10 to 0.  
+
+``` {r end, echo = FALSE}
+# same model, but with effect coding
+end.e = lmer(MeanAmp ~ Race.e*Trial.end + (Race.e|Subject) + (1|Electrode), dat = dat)
+```
+  
+**Random effects:**  
+``` {r endrandom, echo = FALSE}
+summary(end.e)$varcor
+```
+
+**Fixed effects:**
+``` {r endfixed, echo = FALSE} 
+round(summary(end.e)$coefficients, digits = 3)
+```
+
+### 3. Testing variances of slopes and intercepts using log likelihood tests
+``` {r}
+# testing significances of random intercepts/slopes
+m3 = lmer(MeanAmp ~ Race.d*Trial.begin + (1|Electrode), dat = dat)
+m2 = lmer(MeanAmp ~ Race.d*Trial.begin + (1|Subject), dat = dat)
+m1 = lmer(MeanAmp ~ Race.d*Trial.begin + (Race.d|Subject), dat = dat)
+m0 = lm(MeanAmp ~ Race.d*Trial.begin, dat = dat)
+
+# test intercept of subject
+anova(m2, m0)
+
+# test slope of race by subject
+anova(m2, m1)
+
+# test intercept of electrode
+anova(m3, m0)
+
+```
+
+### 4. Testing blocks to see more precisely where the race effect dissappears
+
+I divided trials into 8 blocks (1-32, 33-64, 65-96, 97-128, 129-160, 161-192, 193-224, 225-256) and labeled them in reverse order (so that the last block is the reference).
+
+``` {r}
+dat$Block = NA
+dat$Block[dat$Trial %in% 225:256] = 0
+dat$Block[dat$Trial %in% 193:224] = 1
+dat$Block[dat$Trial %in% 161:192] = 2
+dat$Block[dat$Trial %in% 129:160] = 3
+dat$Block[dat$Trial %in% 97:128] = 4
+dat$Block[dat$Trial %in% 65:96] = 5
+dat$Block[dat$Trial %in% 33:64] = 6
+dat$Block[dat$Trial %in% 1:32] = 7
+dat$Block = factor(dat$Block)
+
+lmer(MeanAmp ~ Race.e*Block + (Race.e|Subject) + (1|Electrode), dat = dat) %>% summary()
+
+
+```
+
+
