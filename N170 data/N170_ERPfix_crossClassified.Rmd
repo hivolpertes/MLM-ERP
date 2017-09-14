@@ -357,26 +357,3 @@ anova(m2, m1)
 anova(m3, m0)
 
 ```
-
-### 4. Testing blocks to see more precisely where the race effect dissappears
-
-I divided trials into 8 blocks (1-32, 33-64, 65-96, 97-128, 129-160, 161-192, 193-224, 225-256) and labeled them in reverse order (so that the last block is the reference).
-
-``` {r}
-dat$Block = NA
-dat$Block[dat$Trial %in% 225:256] = 0
-dat$Block[dat$Trial %in% 193:224] = 1
-dat$Block[dat$Trial %in% 161:192] = 2
-dat$Block[dat$Trial %in% 129:160] = 3
-dat$Block[dat$Trial %in% 97:128] = 4
-dat$Block[dat$Trial %in% 65:96] = 5
-dat$Block[dat$Trial %in% 33:64] = 6
-dat$Block[dat$Trial %in% 1:32] = 7
-dat$Block = factor(dat$Block)
-
-lmer(MeanAmp ~ Race.e*Block + (Race.e|Subject) + (1|Electrode), dat = dat) %>% summary()
-
-
-```
-
-
