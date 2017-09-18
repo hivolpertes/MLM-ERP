@@ -1,3 +1,7 @@
+require(dplyr)
+require(lme4)
+require(lmerTest)
+
 # Try to figure out when effect of Race becomes no longer significant
 
 dat = read.delim("./N170 data/Cat_AllSubs_TBTaverages_noBS_groupN170.txt")
@@ -10,7 +14,7 @@ dat$Race.e = NA
 dat$Race.e[dat$Race == "Black"] = -1
 dat$Race.e[dat$Race == "White"] = 1
 
-# 1. Try separating into blocks
+# 1. Try separating into blocks, test with last block as the reference
 
 dat$Block = NA
 dat$Block[dat$Trial %in% 225:256] = 0
@@ -24,7 +28,7 @@ dat$Block[dat$Trial %in% 1:32] = 7
 dat$Block = factor(dat$Block)
 
 # interactions between race and block test difference in effect of race between block and reference block (last block)
-# doesn't compare to 0
+# doesn't compare to 0, which is technically what we want
 lmer(MeanAmp ~ Race.e*Block + (Race.e|Subject) + (1|Electrode), dat = dat) %>% summary()
 
 
