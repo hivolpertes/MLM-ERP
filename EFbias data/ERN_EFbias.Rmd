@@ -455,15 +455,30 @@ for (i in unique(dat$Subject)) {
 
 sum = lmer(MeanAmp ~ (1|Subject) + (1|Electrode), dat = trialOrderDat) %>% summary()
 
-subICC = 8.289/(8.289+2.025+61.041)
-elecICC = 2.025/(8.289+2.025+61.041)
+subICC = 8.289/(8.289+2.025+61.041^2)
+elecICC = 2.025/(8.289+2.025+61.041^2)
 ```
 
 The ICC associated with *subject* is `r subICC`.  
 The ICC associated with *electrode* is `r elecICC`.  
 
 **Slopes and estimates of lines are from the MLM, not fitted with OLS.  Negative is plotted downward.** 
-  
+
+``` {r}
+# check ICCs with signal averaging approach
+sigavg = select(trialOrderDat, -Trial, -Race, -Object, -Accuracy, -TrialOrder) %>%
+  group_by(Subject, Condition, Electrode) %>% 
+  summarise_each(funs(mean(., na.rm = T))) %>% 
+  as.data.frame()
+
+sum = lmer(MeanAmp ~ (1|Subject) + (1|Electrode), dat = sigavg) %>% summary()
+
+subICC = 8.176/(8.176+2.018+6.88^2)
+elecICC = 2.018/(8.176+2.018+6.88^2)
+```
+
+
+
 ``` {r subord, echo=F, warning=F}
 
 

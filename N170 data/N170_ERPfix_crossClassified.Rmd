@@ -121,8 +121,8 @@ sigavg = select(dat, -Trial, -Condition, -Fix) %>%
 
 sum = lmer(MeanAmp ~ (1|Subject) + (1|Electrode), dat = sigavg) %>% summary()
 
-subICC = 4.8994/(4.8994+.3832+3.0517)
-elecICC = .3832/(4.8994+.3832+3.0517)
+subICC = 4.8994/(4.8994+.3832+3.0517^2)
+elecICC = .3832/(4.8994+.3832+3.0517^2)
 ```
 
 The ICC associated with *subject* is `r subICC`.  
@@ -157,8 +157,8 @@ ICCs were first calculated for subject and electrode.
 ``` {r}
 sum = lmer(MeanAmp ~ (1|Subject) + (1|Electrode), dat = dat) %>% summary()
 
-subICC = 5.1535/(5.1535+.4853+101.8823)
-elecICC = .4853/(5.1535+.4853+101.8823)
+subICC = 5.1535/(5.1535+.4853+101.8823^2)
+elecICC = .4853/(5.1535+.4853+101.8823^2)
 ```
 
 The ICC associated with *subject* is `r subICC`.  
