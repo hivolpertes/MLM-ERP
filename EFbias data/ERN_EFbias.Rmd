@@ -552,9 +552,9 @@ SE.dat$lower = SE.dat$Point - SE.dat$SE
 
 custom = c("dodgerblue", "blue", "red", "red4")
 # BINGO -------------------------------------------------------------------
-ggplot(SE.dat, aes(Trial, Point, alpha = Condition, color = Condition, shape = Condition)) +
+ggplot(SE.dat, aes(Trial, Point, alpha = Condition, color = Condition, shape = Condition, color = linetype)) +
   geom_point()+
-  geom_abline(data = forPlotting, aes(intercept=Intercept, slope=Slope, color = Condition), size=1.5)+
+  geom_abline(data = forPlotting, aes(intercept=Intercept, slope=Slope, color = Condition, linetype = Condition), size=1.5)+
   geom_ribbon(aes(ymin=lower, ymax=upper, x = Trial, fill = Condition),
               linetype = "dotted",
               alpha = .25,
@@ -564,10 +564,11 @@ ggplot(SE.dat, aes(Trial, Point, alpha = Condition, color = Condition, shape = C
   scale_shape_manual(values=c(1,19,1,19)) +
   scale_alpha_manual(values=c(.1,.1,.1,.1)) +
   scale_color_manual(values=custom) +
+  scale_linetype_manual(values=c("solid", "solid", "longdash", "longdash")) +
   theme_bw() +
   scale_y_continuous(limits =c(-5, 2.5), expand=c(0,0)) +
   scale_x_continuous(expand=c(0,0), breaks=c(25, 50, 75, 100, 125, 150)) +
-  ggtitle("Error Number") +
+#  ggtitle("Error Number") +
   theme(plot.title = element_text(hjust = 0.5),# center title
         axis.title = element_text(size = 20),
         axis.text.y = element_text(size = 16),
