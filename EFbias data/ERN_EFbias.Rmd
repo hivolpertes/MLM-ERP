@@ -9,7 +9,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
 options(width=140)
 require(dplyr)
 require(ggplot2)
@@ -455,8 +455,10 @@ for (i in unique(dat$Subject)) {
 
 sum = lmer(MeanAmp ~ (1|Subject) + (1|Electrode), dat = trialOrderDat) %>% summary()
 
-subICC = 8.289/(8.289+2.025+61.041^2)
-elecICC = 2.025/(8.289+2.025+61.041^2)
+sum
+
+subICC = 8.289/(8.289+2.025+61.041)
+elecICC = 2.025/(8.289+2.025+61.041)
 ```
 
 The ICC associated with *subject* is `r subICC`.  
@@ -473,9 +475,13 @@ sigavg = select(trialOrderDat, -Trial, -Race, -Object, -Accuracy, -TrialOrder) %
 
 sum = lmer(MeanAmp ~ (1|Subject) + (1|Electrode), dat = sigavg) %>% summary()
 
-subICC = 8.176/(8.176+2.018+6.88^2)
-elecICC = 2.018/(8.176+2.018+6.88^2)
+sum
+
+subICC = 8.176/(8.176+2.018+6.88)
+elecICC = 2.018/(8.176+2.018+6.88)
 ```
+The ICC associated with *subject* is `r subICC`.  
+The ICC associated with *electrode* is `r elecICC`.  
 
 
 

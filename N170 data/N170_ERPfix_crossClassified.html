@@ -121,6 +121,26 @@ $(document).ready(function () {
 <p>All trials were averaged together and the mean amplitude was calculated for each condition for each subject. Subject and electrode were used as crossed random factors. ICCs were first calculated with an intercept-only model.</p>
 <pre><code>## summary from lme4 is returned
 ## some computational error has occurred in lmerTest</code></pre>
+<pre><code>## Linear mixed model fit by REML ['lmerMod']
+## Formula: MeanAmp ~ (1 | Subject) + (1 | Electrode)
+##    Data: sigavg
+## 
+## REML criterion at convergence: 2234.9
+## 
+## Scaled residuals: 
+##     Min      1Q  Median      3Q     Max 
+## -3.4867 -0.5670  0.0173  0.6396  2.6165 
+## 
+## Random effects:
+##  Groups    Name        Variance Std.Dev.
+##  Subject   (Intercept) 4.8994   2.2135  
+##  Electrode (Intercept) 0.3832   0.6191  
+##  Residual              3.0517   1.7469  
+## Number of obs: 520, groups:  Subject, 65; Electrode, 4
+## 
+## Fixed effects:
+##             Estimate Std. Error t value
+## (Intercept)  -1.3232     0.4208  -3.145</code></pre>
 <p>The ICC associated with <em>subject</em> is 0.5878598.<br />
 The ICC associated with <em>electrode</em> is 0.0459787.</p>
 <p>A model was fitted with Race predicting mean amplitude calculated in this way. The intercept and slope of Race were allowed to vary by subject. The intercept was allowed to vary by Electrode.</p>
@@ -142,6 +162,26 @@ The ICC associated with <em>electrode</em> is 0.0459787.</p>
 <p>ICCs were first calculated for subject and electrode.</p>
 <pre><code>## summary from lme4 is returned
 ## some computational error has occurred in lmerTest</code></pre>
+<pre><code>## Linear mixed model fit by REML ['lmerMod']
+## Formula: MeanAmp ~ (1 | Subject) + (1 | Electrode)
+##    Data: dat
+## 
+## REML criterion at convergence: 374021.1
+## 
+## Scaled residuals: 
+##     Min      1Q  Median      3Q     Max 
+## -4.8531 -0.6289 -0.0007  0.6293  6.0677 
+## 
+## Random effects:
+##  Groups    Name        Variance Std.Dev.
+##  Subject   (Intercept)   5.1535  2.2701 
+##  Electrode (Intercept)   0.4853  0.6966 
+##  Residual              101.8823 10.0937 
+## Number of obs: 50092, groups:  Subject, 65; Electrode, 4
+## 
+## Fixed effects:
+##             Estimate Std. Error t value
+## (Intercept)  -1.3175     0.4503  -2.926</code></pre>
 <p>The ICC associated with <em>subject</em> is 0.0479301.<br />
 The ICC associated with <em>electrode</em> is 0.0045135.</p>
 <p><strong>Slopes and estimates of lines are from the MLM, not fitted with OLS. Negative is plotted downward.</strong></p>
@@ -220,53 +260,6 @@ The ICC associated with <em>electrode</em> is 0.0045135.</p>
 ## object  6 376280 376333 -188134   376268 153.8      1  &lt; 2.2e-16 ***
 ## ---
 ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</code></pre>
-</div>
-<div id="testing-blocks-to-see-more-precisely-where-the-race-effect-dissappears" class="section level3">
-<h3>4. Testing blocks to see more precisely where the race effect dissappears</h3>
-<p>I divided trials into 8 blocks (1-32, 33-64, 65-96, 97-128, 129-160, 161-192, 193-224, 225-256) and labeled them in reverse order (so that the last block is the reference).</p>
-<pre><code>## Linear mixed model fit by REML 
-## t-tests use  Satterthwaite approximations to degrees of freedom ['lmerMod']
-## Formula: MeanAmp ~ Race.e * Block + (Race.e | Subject) + (1 | Electrode)
-##    Data: dat
-## 
-## REML criterion at convergence: 373894.2
-## 
-## Scaled residuals: 
-##     Min      1Q  Median      3Q     Max 
-## -4.8798 -0.6270 -0.0004  0.6288  5.9616 
-## 
-## Random effects:
-##  Groups    Name        Variance Std.Dev. Corr 
-##  Subject   (Intercept)   5.1566  2.2708       
-##            Race.e        0.3436  0.5862  -0.18
-##  Electrode (Intercept)   0.4853  0.6967       
-##  Residual              101.4277 10.0711       
-## Number of obs: 50092, groups:  Subject, 65; Electrode, 4
-## 
-## Fixed effects:
-##                 Estimate Std. Error         df t value Pr(&gt;|t|)    
-## (Intercept)   -1.547e+00  4.709e-01  1.000e+01  -3.284 0.008801 ** 
-## Race.e         8.063e-02  1.620e-01  6.980e+02   0.498 0.618814    
-## Block1         1.024e-01  1.931e-01  5.003e+04   0.530 0.596044    
-## Block2         3.195e-01  1.922e-01  5.003e+04   1.662 0.096438 .  
-## Block3         6.460e-01  1.911e-01  5.004e+04   3.379 0.000727 ***
-## Block4         2.487e-02  1.935e-01  5.004e+04   0.128 0.897754    
-## Block5         1.218e-01  1.917e-01  5.004e+04   0.635 0.525387    
-## Block6         1.454e-01  1.900e-01  5.004e+04   0.765 0.444020    
-## Block7         3.398e-01  1.900e-01  5.004e+04   1.789 0.073657 .  
-## Race.e:Block1  3.462e-01  1.931e-01  4.999e+04   1.793 0.072983 .  
-## Race.e:Block2  6.858e-02  1.920e-01  4.994e+04   0.357 0.721000    
-## Race.e:Block3 -2.364e-02  1.910e-01  4.980e+04  -0.124 0.901495    
-## Race.e:Block4 -2.533e-01  1.932e-01  4.967e+04  -1.311 0.189995    
-## Race.e:Block5  3.456e-01  1.914e-01  4.964e+04   1.805 0.071022 .  
-## Race.e:Block6  2.795e-01  1.898e-01  4.975e+04   1.473 0.140788    
-## Race.e:Block7  5.273e-01  1.897e-01  4.972e+04   2.779 0.005450 ** 
-## ---
-## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</code></pre>
-<pre><code>## 
-## Correlation matrix not shown by default, as p = 16 &gt; 12.
-## Use print(x, correlation=TRUE)  or
-##   vcov(x)     if you need it</code></pre>
 </div>
 
 
